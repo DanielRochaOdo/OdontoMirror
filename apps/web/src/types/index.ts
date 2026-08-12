@@ -7,13 +7,13 @@ export interface WhatsAppAccount {
   name: string;
   phoneNumber: string;
   description?: string;
-  profileName: string;
+  profileName?: string;
   profilePictureUrl?: string;
   status: WhatsAppStatus;
   connected: boolean;
   conversationCount: number;
-  lastSyncAt: string;
-  lastMessageAt: string;
+  lastSyncAt?: string;
+  lastMessageAt?: string;
 }
 
 export interface Contact {
@@ -28,10 +28,9 @@ export interface Conversation {
   whatsappAccountId: string;
   contact: Contact;
   conversationType: 'individual' | 'group';
-  lastMessageAt: string;
+  lastMessageAt?: string;
   lastMessagePreview: string;
   messageCount: number;
-  unread?: number;
   lastMessageType?: MessageType;
 }
 
@@ -64,6 +63,14 @@ export interface AuditLog {
   entityType: string;
   entityLabel: string;
   adminName: string;
+  whatsappAccountName?: string;
   createdAt: string;
-  metadata?: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface AdminProfile {
+  id: string;
+  name: string;
+  role: 'admin';
+  active: boolean;
 }
