@@ -1,0 +1,20 @@
+{
+  "name": "odonto-mirror",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["apps/web", "server"],
+  "scripts": {
+    "dev": "concurrently -k \"npm run dev -w apps/web\" \"npm run dev -w server\"",
+    "build": "npm run build -w apps/web && npm run build -w server",
+    "start": "npm run start -w server",
+    "lint": "npm run lint -w apps/web && npm run lint -w server",
+    "typecheck": "npm run typecheck -w apps/web && npm run typecheck -w server",
+    "test": "npm run test -w apps/web && npm run test -w server",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "concurrently": "^9.1.2",
+    "prettier": "^3.5.3"
+  }
+}

@@ -1,0 +1,13 @@
+.env
+.env.local
+.env.*.local
+node_modules
+dist
+coverage
+logs
+*.log
+sessions
+whatsapp-sessions
+supabase/.temp/
+*.tsbuildinfo
+.DS_Store
