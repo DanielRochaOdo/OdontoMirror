@@ -8,6 +8,14 @@ import { whatsappRoutes } from './routes/whatsapp.js';
 import { WhatsAppSessionManager } from './whatsapp/WhatsAppSessionManager.js';
 import { WhatsAppProviderImplementation } from './whatsapp/providers/WhatsAppProviderImplementation.js';
 
+function statusCodeFrom(cause: unknown) {
+  if (typeof cause === 'object' && cause !== null && 'statusCode' in cause) {
+    const candidate = cause.statusCode;
+    if (typeof candidate === 'number') return candidate;
+  }
+  return 500;
+}
+
 export async function buildApp() {
   const app = Fastify({ logger: { redact: ['req.headers.authorization', 'req.headers.cookie', 'body.qrCode'] } });
   await app.register(helmet);
@@ -17,9 +25,14 @@ export async function buildApp() {
   await app.register(healthRoutes);
   await app.register(whatsappRoutes, { manager });
   await manager.restore();
-  app.setErrorHandler((error, request, response) => {
+  app.setErrorHandler((cause, request, response) => {
+    const error = cause instanceof Error ? cause : new Error('Falha desconhecida no servidor.');
+    const statusCode = statusCodeFrom(cause);
     request.log.error({ error: error.message, method: request.method, url: request.url }, 'request failed');
-    response.code(error.statusCode && error.statusCode >= 400 ? error.statusCode : 500).send({ error: 'request_failed', message: error.statusCode && error.statusCode < 500 ? error.message : 'Falha interna no servidor.' });
+    response.code(statusCode >= 400 ? statusCode : 500).send({
+      error: 'request_failed',
+      message: statusCode >= 400 && statusCode < 500 ? error.message : 'Falha interna no servidor.',
+    });
   });
   app.setNotFoundHandler((_request, response) => response.code(404).send({ error: 'not_found' }));
   return app;
