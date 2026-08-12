@@ -1,7 +1,26 @@
 # Provider WhatsApp
 
-`WhatsAppReadOnlyProvider` define somente criação/encerramento de sessão, QR, status, chats, mensagens, contatos e mídia. A aplicação não depende de uma biblioteca específica.
+A implementação atual usa `whatsapp-web.js` com `LocalAuth`, uma sessão isolada por `whatsapp_account_id` e persistência local sob `WHATSAPP_SESSION_PATH`.
 
-O adapter demonstrativo retorna estados vazios. Antes de implementá-lo com uma biblioteca Multi-Device, valide a documentação corrente, o licenciamento, persistência de sessão, suporte a múltiplas contas, eventos de mídia e reconexão. O adapter deve normalizar eventos para os tipos internos e deduplicar por `external_message_id` antes de persistir.
+## Operações expostas ao restante do backend
 
-Não adicione operações de envio, reação, edição, exclusão, presença, digitação ou leitura automática. Abrir uma conversa no painel não deve produzir efeitos no celular do cliente.
+- criar/inicializar sessão;
+- obter QR Code;
+- consultar status;
+- desconectar/remover sessão;
+- sincronizar chats, contatos, mensagens e mídias;
+- consultar chats/mensagens/contatos para diagnóstico do provider.
+
+Não há métodos de envio, resposta, encaminhamento, reação, edição, exclusão de mensagens ou alteração de presença.
+
+## Eventos observados
+
+- QR e autenticação para o ciclo de conexão;
+- estado `ready` para marcar a conta como conectada e iniciar sincronização;
+- mensagens recebidas;
+- mensagens criadas pelo próprio dispositivo corporativo, apenas para espelhamento do histórico;
+- falha de autenticação e desconexão.
+
+## Mídias
+
+Ao observar uma mensagem com mídia, o backend baixa o conteúdo, grava no bucket privado `whatsapp-media`, registra metadados em `media_files` e associa a mídia à mensagem. O caminho usa apenas UUIDs; o nome original do arquivo fica apenas no metadado do banco.

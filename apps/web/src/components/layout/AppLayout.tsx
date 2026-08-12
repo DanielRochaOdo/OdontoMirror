@@ -1,5 +1,9 @@
 import type { ReactNode } from 'react';
+import { useRealtimeSync } from '../../hooks/realtime';
 import { AppSidebar } from './AppSidebar';
 import { Topbar } from './Topbar';
 
-export function AppLayout({ children }: { children: ReactNode }) { return <div className="app-shell"><AppSidebar /><main className="main-shell"><Topbar /><div className="page-container">{children}</div></main></div>; }
+export function AppLayout({ children }: { children: ReactNode }) {
+  useRealtimeSync();
+  return <div className="app-shell"><AppSidebar /><main className="main-shell"><Topbar /><div className="page-container">{children}</div></main></div>;
+}
