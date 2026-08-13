@@ -1,9 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import themeCss from './theme.css?raw';
 
+function darkThemeBlock() {
+  const marker = themeCss.search(/data-theme\s*=\s*['"]dark['"]/i);
+  if (marker < 0) throw new Error('Bloco do tema escuro não encontrado.');
+  const openingBrace = themeCss.indexOf('{', marker);
+  const closingBrace = themeCss.indexOf('}', openingBrace + 1);
+  if (openingBrace < 0 || closingBrace < 0) throw new Error('Bloco do tema escuro está inválido.');
+  return themeCss.slice(openingBrace + 1, closingBrace);
+}
+
 function darkToken(name: string) {
-  const block = themeCss.match(/html\[data-theme='dark'\]\s*\{([\s\S]*?)\n\}/)?.[1];
-  const value = block?.match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})`))?.[1];
+  const value = darkThemeBlock().match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})`, 'i'))?.[1];
   if (!value) throw new Error(`Token --${name} não encontrado no tema escuro.`);
   return value;
 }
