@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 
 const apiUrl = (import.meta.env.VITE_API_URL?.trim() || 'http://localhost:3333').replace(/\/$/, '');
-const isNgrokFreeEndpoint = apiUrl.includes('.ngrok-free.app');
+const isNgrokFreeEndpoint = apiUrl.includes('.ngrok-free.app') || apiUrl.includes('.ngrok-free.dev');
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const { data: { session } } = await supabase.auth.getSession();
