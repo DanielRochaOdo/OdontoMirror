@@ -8,6 +8,7 @@ logs
 *.log
 sessions
 whatsapp-sessions
+.wwebjs_cache
 supabase/.temp/
 *.tsbuildinfo
 .DS_Store

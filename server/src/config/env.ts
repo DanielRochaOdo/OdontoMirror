@@ -1,5 +1,10 @@
-import 'dotenv/config';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { config } from 'dotenv';
 import { z } from 'zod';
+
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../../');
+config({ path: resolve(repoRoot, '.env') });
 
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
