@@ -1,0 +1,104 @@
+.sync-progress-banner {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 11px;
+  padding: 15px 17px;
+  display: grid;
+  gap: 12px;
+  box-shadow: 0 8px 28px var(--shadow);
+}
+
+.sync-progress-heading {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.sync-progress-heading > div:nth-child(2) {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.sync-progress-heading strong {
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.sync-progress-heading span {
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.sync-progress-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.sync-progress-completed .sync-progress-icon {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.sync-progress-failed .sync-progress-icon,
+.sync-progress-error .sync-progress-icon {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.sync-progress-close {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  padding: 7px;
+  border-radius: 7px;
+}
+
+.sync-progress-close:hover {
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+
+.sync-progress-track {
+  height: 7px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--border-soft);
+}
+
+.sync-progress-track > span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--success);
+  transition: width .25s ease;
+}
+
+.sync-progress-failed .sync-progress-track > span,
+.sync-progress-error .sync-progress-track > span {
+  background: var(--danger);
+}
+
+.sync-progress-track-running > span {
+  width: 38%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-hover), var(--accent));
+  animation: sync-progress-slide 1.35s ease-in-out infinite;
+}
+
+@keyframes sync-progress-slide {
+  from { transform: translateX(-115%); }
+  to { transform: translateX(300%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sync-progress-track-running > span { animation-duration: 3s; }
+}
