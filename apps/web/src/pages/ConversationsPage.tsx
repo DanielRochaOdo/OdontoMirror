@@ -29,6 +29,11 @@ export function ConversationsPage() {
 
   useEffect(() => { if (activeId) storeConversation(activeId); }, [activeId, storeConversation]);
   useEffect(() => { if (accountId && activeId) void logAuditEvent('VIEW_CONVERSATION', 'conversation', activeId, accountId, { entity_label: conversation?.contact.name ?? 'Conversa' }); }, [accountId, activeId, conversation?.contact.name]);
+  useEffect(() => {
+    if (loadingMessages || !messageItems.length) return;
+    const messageList = document.querySelector<HTMLElement>('.message-list');
+    if (messageList) messageList.scrollTop = messageList.scrollHeight;
+  }, [activeId, loadingMessages, messageItems]);
 
   const selectedConversation = useMemo(() => conversation ?? conversationItems.find((item) => item.id === activeId), [conversation, conversationItems, activeId]);
 
