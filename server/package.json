@@ -9,7 +9,8 @@
     "start": "node dist/server.js",
     "lint": "eslint src --ext ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "postinstall": "node ../scripts/apply-wwebjs-readonly-hotfix.cjs"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.2",
