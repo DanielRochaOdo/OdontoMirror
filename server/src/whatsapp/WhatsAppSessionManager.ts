@@ -43,6 +43,10 @@ export class WhatsAppSessionManager {
     return this.syncProgress.get(accountId) ?? idleProgress(accountId);
   }
 
+  async sync(accountId: string) {
+    return this.startSync(accountId);
+  }
+
   async startSync(accountId: string) {
     const existingTask = this.syncTasks.get(accountId);
     if (existingTask) return this.getSyncProgress(accountId);
