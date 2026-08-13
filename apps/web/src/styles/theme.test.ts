@@ -1,5 +1,8 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import themeCss from './theme.css?raw';
+
+const themeCss = readFileSync(resolve(process.cwd(), 'src/styles/theme.css'), 'utf8');
 
 function darkThemeBlock() {
   const marker = themeCss.search(/data-theme\s*=\s*['"]dark['"]/i);
