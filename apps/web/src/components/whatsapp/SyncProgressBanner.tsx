@@ -2,6 +2,7 @@ import { AlertCircle, CheckCircle2, LoaderCircle, X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { whatsappApi, type SyncProgress } from '../../lib/api';
+import '../../styles/sync-progress.css';
 
 function elapsedLabel(startedAt: string | null, now: number) {
   if (!startedAt) return 'aguardando início';
