@@ -9,6 +9,7 @@ import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { WhatsAppsPage } from './pages/WhatsAppsPage';
 import './styles/index.css';
+import './styles/theme.css';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 15_000, retry: 1 } } });
 
