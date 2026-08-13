@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 
 const apiUrl = (import.meta.env.VITE_API_URL?.trim() || 'http://localhost:3333').replace(/\/$/, '');
+const isNgrokFreeEndpoint = apiUrl.includes('.ngrok-free.app');
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -8,6 +9,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   const headers = new Headers(init.headers);
   headers.set('Authorization', `Bearer ${session.access_token}`);
+  if (isNgrokFreeEndpoint) headers.set('ngrok-skip-browser-warning', '1');
   if (init.body != null && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
 
   let response: Response;
@@ -17,7 +19,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       headers,
     });
   } catch {
-    throw new Error(`Backend indisponível em ${apiUrl}. Confirme se o comando npm run dev está ativo na raiz do projeto.`);
+    throw new Error(`Não foi possível conectar à API do OdontoMirror em ${apiUrl}.`);
   }
 
   const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
