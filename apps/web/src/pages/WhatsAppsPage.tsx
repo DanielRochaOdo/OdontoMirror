@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { AddWhatsAppDialog } from '../components/whatsapp/AddWhatsAppDialog';
+import { SyncProgressBanner } from '../components/whatsapp/SyncProgressBanner';
 import { WhatsAppQRCodeDialog, type QRTarget } from '../components/whatsapp/WhatsAppQRCodeDialog';
 import { WhatsAppStatusBadge } from '../components/whatsapp/WhatsAppStatusBadge';
 import { Button } from '../components/ui/button';
@@ -12,34 +13,127 @@ import { whatsappApi } from '../lib/api';
 import { logAuditEvent } from '../lib/audit';
 import { formatRelativeDate } from '../lib/utils';
 
+interface ActiveSync {
+  id: string;
+  name: string;
+}
+
 export function WhatsAppsPage() {
   const queryClient = useQueryClient();
   const { data: accounts = [], isLoading } = useWhatsAppAccounts();
   const [search, setSearch] = useState('');
   const [addOpen, setAddOpen] = useState(false);
   const [qrAccount, setQrAccount] = useState<QRTarget | null>(null);
-  const filtered = useMemo(() => accounts.filter((account) => `${account.name} ${account.phoneNumber}`.toLowerCase().includes(search.toLowerCase())), [accounts, search]);
+  const [activeSync, setActiveSync] = useState<ActiveSync | null>(null);
+
+  const filtered = useMemo(
+    () => accounts.filter((account) => `${account.name} ${account.phoneNumber}`.toLowerCase().includes(search.toLowerCase())),
+    [accounts, search],
+  );
   const lastSync = accounts.map((account) => account.lastSyncAt).filter(Boolean).sort().at(-1);
   const refreshAccounts = () => queryClient.invalidateQueries({ queryKey: ['whatsapp-accounts'] });
 
   const connect = async (id: string, name: string) => {
-    try { await whatsappApi.connect(id); setQrAccount({ id, name }); }
-    catch (error) { toast.error(error instanceof Error ? error.message : 'Falha ao conectar.'); }
-  };
-  const sync = async (id: string, name: string) => {
-    try { await whatsappApi.sync(id); toast.success(`Sincronização de ${name} iniciada.`); }
-    catch (error) { toast.error(error instanceof Error ? error.message : 'Falha ao sincronizar.'); }
-  };
-  const disconnect = async (id: string, name: string) => {
-    if (!window.confirm(`Desconectar ${name} do MirrorDesk?`)) return;
-    try { await whatsappApi.disconnect(id); toast.success(`${name} desconectado.`); await refreshAccounts(); }
-    catch (error) { toast.error(error instanceof Error ? error.message : 'Falha ao desconectar.'); }
-  };
-  const remove = async (id: string, name: string) => {
-    if (!window.confirm(`Excluir ${name} e todos os dados sincronizados deste número? Esta ação não pode ser desfeita.`)) return;
-    try { await whatsappApi.remove(id); toast.success(`${name} removido.`); await refreshAccounts(); }
-    catch (error) { toast.error(error instanceof Error ? error.message : 'Falha ao excluir.'); }
+    try {
+      await whatsappApi.connect(id);
+      setQrAccount({ id, name });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Falha ao conectar.');
+    }
   };
 
-  return <div className="page-stack"><div className="page-heading"><div><p className="eyebrow">CENTRAL DE CONFERÊNCIA</p><h1>WhatsApps corporativos</h1><p className="page-subtitle">Selecione um número para consultar suas conversas com segurança.</p></div><Button onClick={() => setAddOpen(true)}><Plus size={17} /> Adicionar WhatsApp</Button></div><div className="overview-grid"><div className="overview-card"><div className="overview-icon blue"><Smartphone size={18} /></div><div><span>Números cadastrados</span><strong>{accounts.length.toString().padStart(2, '0')}</strong></div><small>contas no ambiente</small></div><div className="overview-card"><div className="overview-icon green"><CheckCircle2 size={18} /></div><div><span>Sessões conectadas</span><strong>{accounts.filter((account) => account.connected).length.toString().padStart(2, '0')}</strong></div><small>de {accounts.length} números</small></div><div className="overview-card"><div className="overview-icon orange"><Activity size={18} /></div><div><span>Última sincronização</span><strong>{lastSync ? new Date(lastSync).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—'}</strong></div><small>{lastSync ? formatRelativeDate(lastSync) : 'nenhuma sincronização'}</small></div></div><section className="content-panel"><div className="panel-toolbar"><div><h2>Seus números</h2><p>Dados organizados por conta corporativa</p></div><label className="search-field"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar número..." /></label></div>{isLoading ? <div className="loading-list">{[1, 2, 3].map((item) => <div className="skeleton-row" key={item} />)}</div> : filtered.length ? <div className="accounts-table"><div className="table-head"><span>NÚMERO CORPORATIVO</span><span>STATUS</span><span>ÚLTIMA ATIVIDADE</span><span>CONVERSAS</span><span>AÇÕES</span></div>{filtered.map((account) => <Link className="account-row" to={`/whatsapps/${account.id}/conversations`} key={account.id} onClick={() => void logAuditEvent('VIEW_ACCOUNT', 'whatsapp_account', account.id, account.id, { entity_label: account.name })}><div className="account-identity"><div className={`account-avatar avatar-${account.id}`}><span>{account.name.slice(0, 2).toUpperCase()}</span><i className={account.connected ? 'online' : ''} /></div><div><strong>{account.name}</strong><span>{account.phoneNumber}</span></div></div><div><WhatsAppStatusBadge status={account.status} /></div><div className="activity-cell"><span>{account.lastMessageAt ? formatRelativeDate(account.lastMessageAt) : 'Sem mensagens'}</span><small><CalendarClock size={13} /> {account.lastSyncAt ? `sincronizado ${formatRelativeDate(account.lastSyncAt)}` : 'ainda não sincronizado'}</small></div><div className="conversation-total"><strong>{account.conversationCount}</strong><span>conversas</span></div><div className="row-action" style={{ display: 'flex', gap: 5 }} onClick={(event) => event.preventDefault()}>{account.connected ? <><button aria-label={`Sincronizar ${account.name}`} title="Sincronizar" onClick={() => void sync(account.id, account.name)}><RefreshCw size={17} /></button><button aria-label={`Desconectar ${account.name}`} title="Desconectar" onClick={() => void disconnect(account.id, account.name)}><Power size={17} /></button></> : <button aria-label={`Conectar ${account.name}`} title="Conectar / QR Code" onClick={() => void connect(account.id, account.name)}><QrCode size={17} /></button>}<button aria-label={`Excluir ${account.name}`} title="Excluir" onClick={() => void remove(account.id, account.name)}><Trash2 size={17} /></button><ArrowUpRight size={18} /></div></Link>)}</div> : <div className="empty-state"><WifiOff size={24} /><strong>Nenhum número encontrado</strong><span>{accounts.length ? 'Tente buscar por outro nome ou telefone.' : 'Cadastre o primeiro WhatsApp corporativo para começar.'}</span></div>}</section><p className="readonly-note"><CheckCircle2 size={15} /> Modo de conferência ativo · nenhuma ação de envio está disponível neste ambiente.</p><AddWhatsAppDialog open={addOpen} onClose={() => setAddOpen(false)} onCreated={(account) => { void refreshAccounts(); setQrAccount({ id: account.accountId, name: account.name }); }} /><WhatsAppQRCodeDialog account={qrAccount} open={Boolean(qrAccount)} onClose={() => setQrAccount(null)} /></div>;
+  const sync = async (id: string, name: string) => {
+    setActiveSync({ id, name });
+    try {
+      const connection = await whatsappApi.status(id);
+      if (connection.status !== 'connected') {
+        throw new Error(`Não é possível sincronizar enquanto o WhatsApp está ${connection.status}. Reconecte o número antes de tentar novamente.`);
+      }
+      await whatsappApi.sync(id);
+      await queryClient.invalidateQueries({ queryKey: ['whatsapp-sync-progress', id] });
+      toast.success(`Sincronização de ${name} iniciada. Acompanhe o andamento na barra.`);
+    } catch (error) {
+      setActiveSync(null);
+      toast.error(error instanceof Error ? error.message : 'Falha ao sincronizar.');
+    }
+  };
+
+  const disconnect = async (id: string, name: string) => {
+    if (!window.confirm(`Desconectar ${name} do MirrorDesk?`)) return;
+    try {
+      await whatsappApi.disconnect(id);
+      toast.success(`${name} desconectado.`);
+      await refreshAccounts();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Falha ao desconectar.');
+    }
+  };
+
+  const remove = async (id: string, name: string) => {
+    if (!window.confirm(`Excluir ${name} e todos os dados sincronizados deste número? Esta ação não pode ser desfeita.`)) return;
+    try {
+      await whatsappApi.remove(id);
+      toast.success(`${name} removido.`);
+      if (activeSync?.id === id) setActiveSync(null);
+      await refreshAccounts();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Falha ao excluir.');
+    }
+  };
+
+  return <div className="page-stack">
+    <div className="page-heading">
+      <div>
+        <p className="eyebrow">CENTRAL DE CONFERÊNCIA</p>
+        <h1>WhatsApps corporativos</h1>
+        <p className="page-subtitle">Selecione um número para consultar suas conversas com segurança.</p>
+      </div>
+      <Button onClick={() => setAddOpen(true)}><Plus size={17} /> Adicionar WhatsApp</Button>
+    </div>
+
+    <div className="overview-grid">
+      <div className="overview-card"><div className="overview-icon blue"><Smartphone size={18} /></div><div><span>Números cadastrados</span><strong>{accounts.length.toString().padStart(2, '0')}</strong></div><small>contas no ambiente</small></div>
+      <div className="overview-card"><div className="overview-icon green"><CheckCircle2 size={18} /></div><div><span>Sessões conectadas</span><strong>{accounts.filter((account) => account.connected).length.toString().padStart(2, '0')}</strong></div><small>de {accounts.length} números</small></div>
+      <div className="overview-card"><div className="overview-icon orange"><Activity size={18} /></div><div><span>Última sincronização</span><strong>{lastSync ? new Date(lastSync).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—'}</strong></div><small>{lastSync ? formatRelativeDate(lastSync) : 'nenhuma sincronização'}</small></div>
+    </div>
+
+    {activeSync && <SyncProgressBanner
+      accountId={activeSync.id}
+      accountName={activeSync.name}
+      onClose={() => setActiveSync(null)}
+      onFinished={(progress) => {
+        void refreshAccounts();
+        if (progress.status === 'completed') toast.success(`Sincronização de ${activeSync.name} concluída.`);
+        if (progress.status === 'failed') toast.error(progress.error ?? `Sincronização de ${activeSync.name} falhou.`);
+      }}
+    />}
+
+    <section className="content-panel">
+      <div className="panel-toolbar">
+        <div><h2>Seus números</h2><p>Dados organizados por conta corporativa</p></div>
+        <label className="search-field"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar número..." /></label>
+      </div>
+      {isLoading ? <div className="loading-list">{[1, 2, 3].map((item) => <div className="skeleton-row" key={item} />)}</div> : filtered.length ? <div className="accounts-table">
+        <div className="table-head"><span>NÚMERO CORPORATIVO</span><span>STATUS</span><span>ÚLTIMA ATIVIDADE</span><span>CONVERSAS</span><span>AÇÕES</span></div>
+        {filtered.map((account) => <Link className="account-row" to={`/whatsapps/${account.id}/conversations`} key={account.id} onClick={() => void logAuditEvent('VIEW_ACCOUNT', 'whatsapp_account', account.id, account.id, { entity_label: account.name })}>
+          <div className="account-identity"><div className={`account-avatar avatar-${account.id}`}><span>{account.name.slice(0, 2).toUpperCase()}</span><i className={account.connected ? 'online' : ''} /></div><div><strong>{account.name}</strong><span>{account.phoneNumber}</span></div></div>
+          <div><WhatsAppStatusBadge status={account.status} /></div>
+          <div className="activity-cell"><span>{account.lastMessageAt ? formatRelativeDate(account.lastMessageAt) : 'Sem mensagens'}</span><small><CalendarClock size={13} /> {account.lastSyncAt ? `sincronizado ${formatRelativeDate(account.lastSyncAt)}` : 'ainda não sincronizado'}</small></div>
+          <div className="conversation-total"><strong>{account.conversationCount}</strong><span>conversas</span></div>
+          <div className="row-action" style={{ display: 'flex', gap: 5 }} onClick={(event) => { event.preventDefault(); event.stopPropagation(); }}>
+            {account.connected ? <>
+              <button disabled={activeSync?.id === account.id} aria-label={`Sincronizar ${account.name}`} title={activeSync?.id === account.id ? 'Sincronização em andamento' : 'Sincronizar'} onClick={() => void sync(account.id, account.name)}><RefreshCw className={activeSync?.id === account.id ? 'spin' : undefined} size={17} /></button>
+              <button aria-label={`Desconectar ${account.name}`} title="Desconectar" onClick={() => void disconnect(account.id, account.name)}><Power size={17} /></button>
+            </> : <button aria-label={`Conectar ${account.name}`} title="Conectar / QR Code" onClick={() => void connect(account.id, account.name)}><QrCode size={17} /></button>}
+            <button aria-label={`Excluir ${account.name}`} title="Excluir" onClick={() => void remove(account.id, account.name)}><Trash2 size={17} /></button>
+            <ArrowUpRight size={18} />
+          </div>
+        </Link>)}
+      </div> : <div className="empty-state"><WifiOff size={24} /><strong>Nenhum número encontrado</strong><span>{accounts.length ? 'Tente buscar por outro nome ou telefone.' : 'Cadastre o primeiro WhatsApp corporativo para começar.'}</span></div>}
+    </section>
+
+    <p className="readonly-note"><CheckCircle2 size={15} /> Modo de conferência ativo · nenhuma ação de envio está disponível neste ambiente.</p>
+    <AddWhatsAppDialog open={addOpen} onClose={() => setAddOpen(false)} onCreated={(account) => { void refreshAccounts(); setQrAccount({ id: account.accountId, name: account.name }); }} />
+    <WhatsAppQRCodeDialog account={qrAccount} open={Boolean(qrAccount)} onClose={() => setQrAccount(null)} />
+  </div>;
 }
