@@ -10,11 +10,13 @@
     "lint": "npm run lint -w apps/web && npm run lint -w server",
     "typecheck": "npm run typecheck -w apps/web && npm run typecheck -w server",
     "test": "npm run test -w apps/web && npm run test -w server",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "postinstall": "patch-package"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
     "concurrently": "^9.1.2",
+    "patch-package": "^8.0.0",
     "prettier": "^3.5.3"
   }
 }
