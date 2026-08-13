@@ -10,7 +10,8 @@
     "lint": "npm run lint -w apps/web && npm run lint -w server",
     "typecheck": "npm run typecheck -w apps/web && npm run typecheck -w server",
     "test": "npm run test -w apps/web && npm run test -w server",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "postinstall": "node scripts/apply-wwebjs-readonly-hotfix.cjs"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
