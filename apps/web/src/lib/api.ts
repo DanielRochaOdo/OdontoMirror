@@ -43,6 +43,13 @@ export interface SyncProgress {
   error: string | null;
 }
 
+export interface ApiHealth {
+  ok: boolean;
+  service: string;
+  readOnly: boolean;
+  timestamp: string;
+}
+
 export const whatsappApi = {
   createAccount: (body: { name: string; description?: string }) => request<CreatedWhatsAppAccount>('/api/whatsapp/accounts', { method: 'POST', body: JSON.stringify(body) }),
   connect: (accountId: string) => request<{ accountId: string; status: string }>(`/api/whatsapp/${accountId}/connect`, { method: 'POST' }),
@@ -52,4 +59,5 @@ export const whatsappApi = {
   syncStatus: (accountId: string) => request<SyncProgress>(`/api/sync/${accountId}/status`),
   status: (accountId: string) => request<{ accountId: string; status: string }>(`/api/whatsapp/${accountId}/status`),
   qr: (accountId: string) => request<{ accountId: string; qrCode: string | null }>(`/api/whatsapp/${accountId}/qr`),
+  health: () => request<ApiHealth>('/health'),
 };
