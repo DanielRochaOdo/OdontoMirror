@@ -6,14 +6,19 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('Sessão administrativa expirada.');
 
-  const response = await fetch(`${apiUrl}${path}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${session.access_token}`,
-      ...(init.headers ?? {}),
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${apiUrl}${path}`, {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+        ...(init.headers ?? {}),
+      },
+    });
+  } catch {
+    throw new Error(`Backend indisponível em ${apiUrl}. Confirme se o comando npm run dev está ativo na raiz do projeto.`);
+  }
 
   const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
   if (!response.ok) {
