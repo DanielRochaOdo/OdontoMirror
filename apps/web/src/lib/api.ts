@@ -29,12 +29,22 @@ export interface CreatedWhatsAppAccount {
   status: string;
 }
 
+export interface SyncProgress {
+  accountId: string;
+  status: 'idle' | 'running' | 'completed' | 'failed';
+  startedAt: string | null;
+  updatedAt: string;
+  completedAt: string | null;
+  error: string | null;
+}
+
 export const whatsappApi = {
   createAccount: (body: { name: string; description?: string }) => request<CreatedWhatsAppAccount>('/api/whatsapp/accounts', { method: 'POST', body: JSON.stringify(body) }),
   connect: (accountId: string) => request<{ accountId: string; status: string }>(`/api/whatsapp/${accountId}/connect`, { method: 'POST' }),
   disconnect: (accountId: string) => request<{ accountId: string; status: string }>(`/api/whatsapp/${accountId}/disconnect`, { method: 'POST' }),
   remove: (accountId: string) => request<{ removed: boolean }>(`/api/whatsapp/${accountId}`, { method: 'DELETE' }),
   sync: (accountId: string) => request<{ accepted: boolean }>(`/api/whatsapp/${accountId}/sync`, { method: 'POST' }),
+  syncStatus: (accountId: string) => request<SyncProgress>(`/api/sync/${accountId}/status`),
   status: (accountId: string) => request<{ accountId: string; status: string }>(`/api/whatsapp/${accountId}/status`),
   qr: (accountId: string) => request<{ accountId: string; qrCode: string | null }>(`/api/whatsapp/${accountId}/qr`),
 };
