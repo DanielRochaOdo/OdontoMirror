@@ -1,0 +1,713 @@
+/*
+ * MirrorDesk theme system
+ *
+ * Dark mode intentionally avoids pure black/white. The base canvas is #0B1120,
+ * primary surfaces are #111A2B/#162033 and primary text is #E7EDF7.
+ * These pairs keep strong contrast without the glare of #000/#FFF.
+ */
+:root {
+  --bg-canvas: #f5f7fa;
+  --bg-shell: #f7f9fb;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-soft: #f7f9fc;
+  --surface-hover: #f1f4f8;
+  --surface-active: #eef1ff;
+  --text-primary: #172033;
+  --text-secondary: #596678;
+  --text-muted: #7d899a;
+  --text-subtle: #98a4b5;
+  --border: #e4e9f0;
+  --border-soft: #eef1f5;
+  --accent: #5368e8;
+  --accent-hover: #4358d4;
+  --accent-soft: #eef1ff;
+  --accent-text: #4c63db;
+  --success: #1f9a75;
+  --success-soft: #eaf8f2;
+  --warning: #c98232;
+  --warning-soft: #fff4e4;
+  --danger: #d7656c;
+  --danger-soft: #fff0f1;
+  --info: #586eeb;
+  --info-soft: #eef1ff;
+  --focus-ring: rgba(83, 104, 232, 0.22);
+  --shadow: rgba(24, 36, 58, 0.12);
+  --backdrop: rgba(20, 33, 61, 0.28);
+  --message-canvas: #fbfcfe;
+  --message-pattern: #e9eef4;
+  --message-in: #ffffff;
+  --message-out: #eef2ff;
+  --message-out-border: #e1e7ff;
+  --control-track: #dbe1e9;
+  --control-knob: #ffffff;
+  --qr-background: #ffffff;
+  --media-overlay: rgba(20, 33, 61, 0.76);
+}
+
+html[data-theme='dark'] {
+  color-scheme: dark;
+  --bg-canvas: #0b1120;
+  --bg-shell: #0d1424;
+  --surface: #111a2b;
+  --surface-raised: #162033;
+  --surface-soft: #121c2d;
+  --surface-hover: #18243a;
+  --surface-active: #1c2a4f;
+  --text-primary: #e7edf7;
+  --text-secondary: #c1cbda;
+  --text-muted: #9ba9bc;
+  --text-subtle: #7f8da3;
+  --border: #253247;
+  --border-soft: #1d293b;
+  --accent: #8795ff;
+  --accent-hover: #9ba7ff;
+  --accent-soft: #1d2852;
+  --accent-text: #a4aeff;
+  --success: #64d3ad;
+  --success-soft: #12382f;
+  --warning: #f1b660;
+  --warning-soft: #382a18;
+  --danger: #f0858c;
+  --danger-soft: #3a2027;
+  --info: #94a2ff;
+  --info-soft: #202b54;
+  --focus-ring: rgba(135, 149, 255, 0.28);
+  --shadow: rgba(0, 0, 0, 0.34);
+  --backdrop: rgba(2, 6, 15, 0.72);
+  --message-canvas: #0f1828;
+  --message-pattern: #233149;
+  --message-in: #172235;
+  --message-out: #1e2b55;
+  --message-out-border: #304174;
+  --control-track: #334158;
+  --control-knob: #e7edf7;
+  --qr-background: #ffffff;
+  --media-overlay: rgba(5, 10, 20, 0.82);
+}
+
+html,
+body {
+  background: var(--bg-canvas);
+  color: var(--text-primary);
+}
+
+body,
+button,
+input,
+textarea {
+  color: var(--text-primary);
+}
+
+::selection {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.app-shell,
+.login-shell {
+  background: var(--bg-shell);
+  color: var(--text-primary);
+}
+
+.sidebar,
+.topbar,
+.content-panel,
+.settings-section,
+.conversation-workspace,
+.message-panel-head,
+.readonly-banner,
+.dialog {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+
+.main-shell,
+.page-container,
+.page-stack,
+.conversation-page {
+  color: var(--text-primary);
+}
+
+h1,
+h2,
+.brand strong,
+.account-identity strong,
+.conversation-total strong,
+.conversation-name strong,
+.message-panel-head h2,
+.document-message strong,
+.audit-event strong,
+.settings-section-head h2,
+.login-heading h2,
+.success-state strong {
+  color: var(--text-primary);
+}
+
+.eyebrow,
+.page-subtitle,
+.brand span,
+.sidebar-section-label,
+.profile-chip span,
+.topbar-title,
+.panel-toolbar p,
+.account-identity span,
+.activity-cell small,
+.conversation-total span,
+.readonly-note,
+.empty-state,
+.message-empty,
+.dialog-head p,
+.optional,
+.qr-help,
+.account-context span,
+.conversation-sidebar-head small,
+.conversation-name time,
+.conversation-preview > span,
+.small-empty,
+.message-panel-head span,
+.message-meta strong,
+.message-meta time,
+.document-message span,
+.audio-message,
+.readonly-banner,
+.settings-section-head p,
+.switch-row small,
+.security-row small,
+.login-heading > p:last-child,
+.login-footnote,
+.login-card-wrap footer {
+  color: var(--text-muted);
+}
+
+.nav-item,
+.logout-button,
+.collapse-button,
+.icon-button,
+.button-ghost,
+.back-link,
+.activity-cell span,
+.audit-admin,
+.switch-row strong,
+.security-row strong,
+label,
+.login-form label,
+.qr-help strong,
+.readonly-banner strong {
+  color: var(--text-secondary);
+}
+
+.nav-item:hover,
+.logout-button:hover,
+.collapse-button:hover,
+.icon-button:hover,
+.row-action button:hover {
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+
+.nav-item-active,
+.filter-chip-active {
+  color: var(--accent-text);
+  background: var(--accent-soft);
+}
+
+.nav-count,
+.brand-mark,
+.avatar-indigo,
+.settings-icon,
+.audit-event-icon,
+.login-icon {
+  color: var(--accent-text);
+  background: var(--accent-soft);
+}
+
+.topbar-dot {
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+.button-primary {
+  background: var(--accent);
+  color: #ffffff;
+  box-shadow: 0 4px 12px var(--focus-ring);
+}
+
+.button-primary:hover {
+  background: var(--accent-hover);
+}
+
+.button-secondary {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.button-outline {
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  border-color: var(--border);
+}
+
+.button-outline:hover {
+  background: var(--surface-hover);
+}
+
+.button-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.overview-card {
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+.overview-card span,
+.overview-card small {
+  color: var(--text-muted);
+}
+
+.overview-icon.blue {
+  background: var(--info-soft);
+  color: var(--info);
+}
+
+.overview-icon.green,
+.success-icon {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.overview-icon.orange {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.overview-card small.positive,
+.readonly-note svg,
+.readonly-banner > svg,
+.security-status,
+.settings-actions {
+  color: var(--success);
+}
+
+.search-field,
+.conversation-search,
+.global-search {
+  background: var(--surface-soft);
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+input,
+textarea,
+.password-field {
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-subtle);
+  opacity: 1;
+}
+
+input:focus,
+textarea:focus,
+.password-field:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.password-field input {
+  background: transparent;
+}
+
+.password-field button {
+  color: var(--text-muted);
+}
+
+.table-head {
+  background: var(--surface-soft);
+  border-color: var(--border);
+  color: var(--text-subtle);
+}
+
+.account-row,
+.audit-row,
+.settings-section-head,
+.switch-row,
+.security-row,
+.conversation-item {
+  border-color: var(--border-soft);
+}
+
+.account-row:hover,
+.conversation-item:hover,
+.conversation-item-active {
+  background: var(--surface-hover);
+}
+
+.conversation-item-active {
+  box-shadow: inset 3px 0 var(--accent);
+}
+
+.account-avatar {
+  color: var(--accent-text);
+  background: var(--accent-soft);
+}
+
+.avatar-financeiro {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.avatar-comercial {
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.account-avatar i,
+.contact-avatar i {
+  border-color: var(--surface);
+}
+
+.badge-green {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.badge-red {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.badge-orange {
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.badge-blue {
+  color: var(--info);
+  background: var(--info-soft);
+}
+
+.badge-neutral {
+  color: var(--text-muted);
+  background: var(--surface-soft);
+}
+
+.skeleton-row,
+.message-loading {
+  background: linear-gradient(90deg, var(--surface-soft), var(--surface-hover), var(--surface-soft));
+  background-size: 200% 100%;
+}
+
+.empty-state strong,
+.message-empty strong {
+  color: var(--text-secondary);
+}
+
+.empty-state svg,
+.message-empty-icon {
+  color: var(--text-subtle);
+}
+
+.dialog-backdrop {
+  background: var(--backdrop);
+}
+
+.dialog {
+  box-shadow: 0 22px 70px var(--shadow);
+}
+
+.dialog-note,
+.readonly-banner-icon {
+  color: var(--text-secondary);
+  background: var(--surface-soft);
+}
+
+.dialog-note svg {
+  color: var(--accent);
+}
+
+.qr-frame {
+  border-color: var(--border);
+  background: var(--surface-soft);
+}
+
+.qr-frame img,
+.fake-qr {
+  background: var(--qr-background);
+  color: #172033;
+  border-radius: 6px;
+}
+
+.qr-status {
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.status-pulse,
+.stat-pulse {
+  background: var(--warning);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--warning) 18%, transparent);
+}
+
+.qr-actions,
+.readonly-banner,
+.message-panel-head,
+.filter-row,
+.conversation-sidebar,
+.sidebar-bottom,
+.panel-toolbar,
+.topbar,
+.sidebar {
+  border-color: var(--border);
+}
+
+.back-link:hover,
+.security-row,
+.form-meta a,
+.link-button {
+  color: var(--accent-text);
+}
+
+.conversation-workspace {
+  background: var(--surface);
+}
+
+.conversation-search {
+  background: var(--surface-soft);
+}
+
+.filter-chip {
+  color: var(--text-muted);
+}
+
+.contact-avatar {
+  color: var(--text-muted);
+  background: var(--surface-soft);
+}
+
+.conversation-item:nth-child(3n) .contact-avatar {
+  color: #c8a8ed;
+  background: color-mix(in srgb, #8f61bd 20%, var(--surface));
+}
+
+.conversation-item:nth-child(3n+1) .contact-avatar {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.conversation-preview b {
+  color: #ffffff;
+  background: var(--accent);
+}
+
+.message-panel {
+  background: var(--message-canvas);
+}
+
+.message-list {
+  background-color: var(--message-canvas);
+  background-image: radial-gradient(var(--message-pattern) 1px, transparent 1px);
+}
+
+.date-divider span {
+  background: var(--surface-raised);
+  color: var(--text-muted);
+  border: 1px solid var(--border-soft);
+}
+
+.message-bubble {
+  background: var(--message-in);
+  border-color: var(--border-soft);
+  box-shadow: 0 2px 8px var(--shadow);
+}
+
+.message-outbound .message-bubble {
+  background: var(--message-out);
+  border-color: var(--message-out-border);
+}
+
+.text-message,
+.media-message p {
+  color: var(--text-primary);
+}
+
+.media-image button {
+  background: var(--media-overlay);
+  color: #ffffff;
+}
+
+.document-icon {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.audio-play {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.audio-wave i {
+  background: color-mix(in srgb, var(--accent) 55%, var(--surface));
+}
+
+.video-placeholder {
+  background: var(--surface-hover);
+  color: var(--text-secondary);
+}
+
+.audit-summary {
+  background: var(--success-soft);
+  border-color: color-mix(in srgb, var(--success) 26%, transparent);
+}
+
+.audit-summary-icon,
+.audit-summary strong {
+  color: var(--success);
+}
+
+.audit-summary span {
+  color: color-mix(in srgb, var(--success) 66%, var(--text-muted));
+}
+
+.switch-row input {
+  background: var(--control-track);
+  border: 0;
+}
+
+.switch-row input::after {
+  background: var(--control-knob);
+}
+
+.switch-row input:checked {
+  background: var(--accent);
+}
+
+.security-status i {
+  background: var(--success);
+}
+
+.login-shell {
+  position: relative;
+}
+
+.login-card-wrap {
+  background: var(--bg-shell);
+  color: var(--text-primary);
+}
+
+.login-visual {
+  background: #101a30;
+}
+
+html[data-theme='dark'] .login-visual {
+  background: #080e1b;
+}
+
+.brand-light strong,
+.visual-copy h1,
+.visual-stat,
+.visual-stat strong {
+  color: #f7f9ff;
+}
+
+.brand-light span,
+.visual-copy > p:last-child,
+.visual-stat small {
+  color: #a9b6cf;
+}
+
+.visual-copy .eyebrow {
+  color: #8fa3d8;
+}
+
+.login-icon {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.form-meta .link-button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.theme-toggle {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-soft);
+  color: var(--text-secondary);
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  box-shadow: 0 1px 2px var(--shadow);
+  transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+
+.theme-toggle:hover {
+  background: var(--surface-hover);
+  color: var(--accent-text);
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+}
+
+.theme-toggle:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.theme-toggle:active {
+  transform: scale(0.96);
+}
+
+.theme-toggle-icon {
+  display: grid;
+  place-items: center;
+}
+
+.login-theme-toggle {
+  position: absolute;
+  top: 22px;
+  right: 24px;
+  z-index: 5;
+}
+
+html[data-theme='dark'] {
+  scrollbar-color: #3a4860 #0d1424;
+}
+
+html[data-theme='dark'] [data-sonner-toast] {
+  --normal-bg: var(--surface-raised);
+  --normal-border: var(--border);
+  --normal-text: var(--text-primary);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .app-shell,
+  .sidebar,
+  .topbar,
+  .content-panel,
+  .settings-section,
+  .conversation-workspace,
+  .message-panel,
+  .message-panel-head,
+  .message-bubble,
+  .dialog,
+  input,
+  textarea,
+  .button,
+  .theme-toggle {
+    transition-property: background-color, color, border-color, box-shadow;
+    transition-duration: 0.16s;
+    transition-timing-function: ease;
+  }
+}
