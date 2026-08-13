@@ -22,7 +22,7 @@ export async function buildApp() {
   await app.register(cors, { origin: env.FRONTEND_URL, credentials: true });
   await app.register(rateLimit, { max: 120, timeWindow: '1 minute' });
   const manager = new WhatsAppSessionManager(new WhatsAppProviderImplementation());
-  await app.register(healthRoutes);
+  await app.register(healthRoutes, { manager });
   await app.register(whatsappRoutes, { manager });
   await manager.restore();
   app.setErrorHandler((cause, request, response) => {
