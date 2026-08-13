@@ -17,7 +17,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
   if (!response.ok) {
-    throw new Error(typeof payload.message === 'string' ? payload.message : typeof payload.error === 'string' ? payload.error : 'Falha na API.');
+    throw new Error(typeof payload.message === 'string' ? payload.message : typeof payload.error === 'string' ? payload.error : `Falha na API (HTTP ${response.status}).`);
   }
   return payload as T;
 }
