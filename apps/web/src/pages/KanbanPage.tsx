@@ -19,6 +19,7 @@ import {
 import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
 import { Dialog } from '../components/ui/dialog';
+import { AdminLeadContactSection } from '../components/commercial/AdminLeadContactSection';
 import {
   useCommercialCompanies,
   useCommercialLeadHistory,
@@ -206,6 +207,8 @@ function LeadDetailDialog({ lead, statuses, isAdmin, onClose }: {
         </div>
       </section>
 
+      {isAdmin && <AdminLeadContactSection lead={activeLead} onChanged={refresh} />}
+
       <section className="lead-detail-section">
         <div className="section-title-row"><MessageCircleMore size={17} /><div><h3>Indicadores de acompanhamento</h3><p>Somente métricas; o vendedor não recebe o conteúdo do WhatsApp.</p></div></div>
         <div className="metric-grid">
@@ -239,7 +242,7 @@ function LeadDetailDialog({ lead, statuses, isAdmin, onClose }: {
       </section>
 
       {isAdmin && <section className="lead-detail-section lead-detail-full admin-correction-box">
-        <div className="section-title-row"><Building2 size={17} /><div><h3>Correção administrativa do vínculo</h3><p>Use somente quando a correspondência automática do telefone precisar ser corrigida.</p></div></div>
+        <div className="section-title-row"><Building2 size={17} /><div><h3>Correção administrativa da empresa</h3><p>Use somente quando a empresa associada automaticamente ao telefone precisar ser corrigida.</p></div></div>
         <div className="correction-row"><select value={effectiveCompanyId} onChange={(event) => setCompanyId(event.target.value)}>{companies.map((company) => <option value={company.id} key={company.id}>{company.companyCode ? `${company.companyCode} - ` : ''}{company.companyName}</option>)}</select><Button variant="secondary" disabled={saving || effectiveCompanyId === activeLead.company.id} onClick={() => void correctCompany()}>Corrigir empresa</Button></div>
       </section>}
     </div>
