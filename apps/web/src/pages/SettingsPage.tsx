@@ -16,14 +16,16 @@ function formatDateTime(value?: string | null) {
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(date);
 }
 
-function KanbanStatusRow({ status, index, total, onRefresh }: {
+function KanbanStatusRow({ status, index, total, onRefresh, onMove }: {
   status: KanbanStatus;
   index: number;
   total: number;
   onRefresh: () => Promise<void>;
+  onMove: (direction: -1 | 1) => Promise<void>;
 }) {
   const [name, setName] = useState(status.name);
   const [saving, setSaving] = useState(false);
+  const protectedInitial = status.slug === 'pos-visita';
 
   useEffect(() => setName(status.name), [status.name]);
 
@@ -43,6 +45,13 @@ function KanbanStatusRow({ status, index, total, onRefresh }: {
     toast.success('Nome da etapa atualizado.');
   };
 
+  const move = async (direction: -1 | 1) => {
+    setSaving(true);
+    try { await onMove(direction); }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível reordenar as etapas.'); }
+    finally { setSaving(false); }
+  };
+
   const remove = async () => {
     setSaving(true);
     try {
@@ -57,10 +66,10 @@ function KanbanStatusRow({ status, index, total, onRefresh }: {
   return <div className="kanban-status-row">
     <span className={`status-dot status-${status.colorKey}`} />
     <input type="text" value={name} disabled={saving} onChange={(event) => setName(event.target.value)} onBlur={() => void saveName()} onKeyDown={(event) => { if (event.key === 'Enter') void saveName(); }} />
-    <div className="status-order-actions"><button type="button" title="Mover para a esquerda" disabled={saving || index === 0} onClick={() => void patch({ position: Math.max(0, status.position - 15) })}><ArrowUp size={14} /></button><button type="button" title="Mover para a direita" disabled={saving || index === total - 1} onClick={() => void patch({ position: status.position + 15 })}><ArrowDown size={14} /></button></div>
+    <div className="status-order-actions"><button type="button" title="Mover etapa para cima" disabled={saving || index === 0} onClick={() => void move(-1)}><ArrowUp size={14} /></button><button type="button" title="Mover etapa para baixo" disabled={saving || index === total - 1} onClick={() => void move(1)}><ArrowDown size={14} /></button></div>
     <label className="checkbox-filter"><input type="checkbox" checked={status.isTerminal} disabled={saving} onChange={(event) => void patch({ isTerminal: event.target.checked })} /> Final</label>
-    <label className="checkbox-filter"><input type="checkbox" checked={status.active} disabled={saving} onChange={(event) => void patch({ active: event.target.checked })} /> Ativa</label>
-    <button className="status-delete-button" type="button" title="Excluir etapa sem leads" disabled={saving} onClick={() => void remove()}><Trash2 size={14} /></button>
+    <label className="checkbox-filter"><input type="checkbox" checked={status.active} disabled={saving || protectedInitial} onChange={(event) => void patch({ active: event.target.checked })} /> Ativa</label>
+    <button className="status-delete-button" type="button" title={protectedInitial ? 'A etapa inicial não pode ser excluída' : 'Excluir etapa sem leads'} disabled={saving || protectedInitial} onClick={() => void remove()}><Trash2 size={14} /></button>
   </div>;
 }
 
@@ -98,9 +107,15 @@ export function SettingsPage() {
     await queryClient.invalidateQueries({ queryKey: ['commercial-kanban-statuses'] });
   };
 
-  const normalizeStatusPositions = async () => {
-    const current = [...orderedStatuses].sort((a, b) => a.position - b.position);
-    await Promise.all(current.map((status, index) => updateKanbanStatus(status.id, { position: (index + 1) * 10 })));
+  const moveStatus = async (index: number, direction: -1 | 1) => {
+    const targetIndex = index + direction;
+    const current = orderedStatuses[index];
+    const target = orderedStatuses[targetIndex];
+    if (!current || !target) return;
+    await Promise.all([
+      updateKanbanStatus(current.id, { position: target.position }),
+      updateKanbanStatus(target.id, { position: current.position }),
+    ]);
     await refreshStatuses();
   };
 
@@ -162,7 +177,7 @@ export function SettingsPage() {
   return <div className="page-stack narrow-page"><div className="page-heading"><div><p className="eyebrow">ACESSO ADMINISTRATIVO</p><h1>Configurações</h1><p className="page-subtitle">Gerencie conta, integração com o Rotas e jornada comercial.</p></div></div>
     <section className="settings-section"><div className="settings-section-head"><div className="settings-icon"><Workflow size={18} /></div><div><h2>Integração comercial com o Rotas</h2><p>Empresas, vendedores e responsáveis do Kanban são atualizados automaticamente a partir das visitas.</p></div></div><div className="commercial-settings-grid"><div className="sync-health-row"><div className="sync-health-meta"><span>Integração: <strong>{syncInfo?.configured ? 'Configurada' : 'Não configurada'}</strong></span><span>Última execução: <strong>{formatDateTime(lastRun?.finished_at ?? lastRun?.started_at)}</strong></span><span>Resultado: <strong>{lastRun?.status === 'success' ? 'Sucesso' : lastRun?.status === 'running' ? 'Em andamento' : lastRun?.status === 'error' ? 'Erro' : '—'}</strong></span></div><Button disabled={syncing || !syncInfo?.configured} onClick={() => void runSync()}><RefreshCw size={16} className={syncing ? 'spin-icon' : ''} /> {syncing ? 'Sincronizando...' : 'Sincronizar agora'}</Button></div>{lastRun?.status === 'success' && <div className="sync-health-meta"><span>{lastRun.vendors_synced} vendedores</span><span>{lastRun.companies_synced} empresas</span><span>{lastRun.visits_synced} visitas</span><span>{lastRun.leads_linked} novos leads vinculados</span><span>{lastRun.assignments_changed} alterações de responsáveis</span></div>}{lastRun?.error_message && <p className="field-error">{lastRun.error_message}</p>}</div></section>
 
-    <section className="settings-section"><div className="settings-section-head"><div className="settings-icon"><Workflow size={18} /></div><div><h2>Etapas do Kanban</h2><p>O administrador define a jornada; vendedores apenas movimentam seus leads entre estas etapas.</p></div></div><div className="commercial-settings-grid"><div className="kanban-status-list">{orderedStatuses.map((status, index) => <KanbanStatusRow key={status.id} status={status} index={index} total={orderedStatuses.length} onRefresh={async () => { await normalizeStatusPositions(); }} />)}</div><div className="new-status-row"><input value={newStatusName} onChange={(event) => setNewStatusName(event.target.value)} placeholder="Nome da nova etapa" onKeyDown={(event) => { if (event.key === 'Enter') void addStatus(); }} /><Button disabled={addingStatus || newStatusName.trim().length < 2} onClick={() => void addStatus()}><Plus size={16} /> Adicionar etapa</Button></div></div></section>
+    <section className="settings-section"><div className="settings-section-head"><div className="settings-icon"><Workflow size={18} /></div><div><h2>Etapas do Kanban</h2><p>O administrador define a jornada; vendedores apenas movimentam seus leads entre estas etapas.</p></div></div><div className="commercial-settings-grid"><div className="kanban-status-list">{orderedStatuses.map((status, index) => <KanbanStatusRow key={status.id} status={status} index={index} total={orderedStatuses.length} onRefresh={refreshStatuses} onMove={(direction) => moveStatus(index, direction)} />)}</div><div className="new-status-row"><input value={newStatusName} onChange={(event) => setNewStatusName(event.target.value)} placeholder="Nome da nova etapa" onKeyDown={(event) => { if (event.key === 'Enter') void addStatus(); }} /><Button disabled={addingStatus || newStatusName.trim().length < 2} onClick={() => void addStatus()}><Plus size={16} /> Adicionar etapa</Button></div></div></section>
 
     <section className="settings-section"><div className="settings-section-head"><div className="settings-icon"><UserRound size={18} /></div><div><h2>Perfil administrativo</h2><p>Nome e e-mail do usuário autenticado</p></div></div><div className="settings-form-grid"><label>Nome completo<input value={name} onChange={(event) => setName(event.target.value)} /></label><label>E-mail<input value={email} onChange={(event) => setEmail(event.target.value)} type="email" /></label><label>Cargo<input value="Administrador" disabled /></label></div><div className="settings-actions"><span>{saved && <><Check size={15} /> Alterações salvas</>}</span><Button disabled={savingProfile} onClick={() => void saveProfile()}>{savingProfile ? 'Salvando...' : 'Salvar perfil'}</Button></div></section>
 
