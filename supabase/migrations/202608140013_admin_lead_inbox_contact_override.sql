@@ -302,7 +302,8 @@ begin
               like '%' || v_digits || '%'
       )
     )
-  order by cv.last_message_at desc nulls last, contact_name asc
+  order by cv.last_message_at desc nulls last,
+           coalesce(nullif(ct.name, ''), nullif(cv.name, ''), 'Contato') asc
   limit greatest(1, least(coalesce(p_limit, 100), 250));
 end;
 $$;
