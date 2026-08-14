@@ -1,7 +1,8 @@
-import { ArrowDown, ArrowUp, Check, KeyRound, Plus, RefreshCw, Trash2, UserRound, Workflow } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, KeyRound, Link2, Plus, RefreshCw, Trash2, UserRound, Workflow } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { CommercialLinkingPanel } from '../components/commercial/CommercialLinkingPanel';
 import { Button } from '../components/ui/button';
 import { useKanbanStatuses, useProfile } from '../hooks/queries';
 import { commercialApi, type CommercialSyncStatus } from '../lib/api';
@@ -154,6 +155,7 @@ export function SettingsPage() {
         queryClient.invalidateQueries({ queryKey: ['commercial-leads'] }),
         queryClient.invalidateQueries({ queryKey: ['commercial-vendors'] }),
         queryClient.invalidateQueries({ queryKey: ['commercial-companies'] }),
+        queryClient.invalidateQueries({ queryKey: ['commercial-unmatched-contacts'] }),
       ]);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Falha ao sincronizar o Rotas.');
@@ -176,6 +178,8 @@ export function SettingsPage() {
 
   return <div className="page-stack narrow-page"><div className="page-heading"><div><p className="eyebrow">ACESSO ADMINISTRATIVO</p><h1>Configurações</h1><p className="page-subtitle">Gerencie conta, integração com o Rotas e jornada comercial.</p></div></div>
     <section className="settings-section"><div className="settings-section-head"><div className="settings-icon"><Workflow size={18} /></div><div><h2>Integração comercial com o Rotas</h2><p>Empresas, vendedores e responsáveis do Kanban são atualizados automaticamente a partir das visitas.</p></div></div><div className="commercial-settings-grid"><div className="sync-health-row"><div className="sync-health-meta"><span>Integração: <strong>{syncInfo?.configured ? 'Configurada' : 'Não configurada'}</strong></span><span>Última execução: <strong>{formatDateTime(lastRun?.finished_at ?? lastRun?.started_at)}</strong></span><span>Resultado: <strong>{lastRun?.status === 'success' ? 'Sucesso' : lastRun?.status === 'running' ? 'Em andamento' : lastRun?.status === 'error' ? 'Erro' : '—'}</strong></span></div><Button disabled={syncing || !syncInfo?.configured} onClick={() => void runSync()}><RefreshCw size={16} className={syncing ? 'spin-icon' : ''} /> {syncing ? 'Sincronizando...' : 'Sincronizar agora'}</Button></div>{lastRun?.status === 'success' && <div className="sync-health-meta"><span>{lastRun.vendors_synced} vendedores</span><span>{lastRun.companies_synced} empresas</span><span>{lastRun.visits_synced} visitas</span><span>{lastRun.leads_linked} novos leads vinculados</span><span>{lastRun.assignments_changed} alterações de responsáveis</span></div>}{lastRun?.error_message && <p className="field-error">{lastRun.error_message}</p>}</div></section>
+
+    <section className="settings-section"><div className="settings-section-head"><div className="settings-icon"><Link2 size={18} /></div><div><h2>Contatos sem vínculo automático</h2><p>Use somente quando o telefone do WhatsApp não puder ser associado com segurança a uma única empresa do Rotas.</p></div></div><CommercialLinkingPanel /></section>
 
     <section className="settings-section"><div className="settings-section-head"><div className="settings-icon"><Workflow size={18} /></div><div><h2>Etapas do Kanban</h2><p>O administrador define a jornada; vendedores apenas movimentam seus leads entre estas etapas.</p></div></div><div className="commercial-settings-grid"><div className="kanban-status-list">{orderedStatuses.map((status, index) => <KanbanStatusRow key={status.id} status={status} index={index} total={orderedStatuses.length} onRefresh={refreshStatuses} onMove={(direction) => moveStatus(index, direction)} />)}</div><div className="new-status-row"><input value={newStatusName} onChange={(event) => setNewStatusName(event.target.value)} placeholder="Nome da nova etapa" onKeyDown={(event) => { if (event.key === 'Enter') void addStatus(); }} /><Button disabled={addingStatus || newStatusName.trim().length < 2} onClick={() => void addStatus()}><Plus size={16} /> Adicionar etapa</Button></div></div></section>
 
