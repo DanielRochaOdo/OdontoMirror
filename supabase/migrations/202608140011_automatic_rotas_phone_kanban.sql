@@ -1,8 +1,8 @@
 -- Rotas is the source of truth for company phones used by the commercial Kanban.
 -- A normal commercial flow must not depend on an administrator manually linking a WhatsApp contact to a company.
 -- Automatic flow:
---   Rotas company phone -> automatic lead identity -> completed visit makes the lead visible ->
---   WhatsApp messages to/from the same phone refresh the commercial metrics.
+--   Rotas company phone -> completed/synchronized visit -> automatic lead identity ->
+--   WhatsApp messages to/from the same phone refresh the commercial metrics immediately.
 -- Manual links remain an explicit administrative override and are never modified by these functions.
 
 create or replace function public.ensure_automatic_commercial_lead_for_company_phone(
@@ -50,6 +50,7 @@ begin
   limit 1;
 
   if found then
+    -- The administrator's manual correction always wins.
     if v_existing.link_source = 'automatic' and v_contact.id is not null then
       update public.commercial_leads
       set contact_id = v_contact.id,
@@ -113,11 +114,20 @@ begin
   v_phone := public.normalize_br_phone(p_phone);
   if v_phone is null then return; end if;
 
-  select count(distinct company_id)::integer, min(company_id)
-  into v_company_count, v_company_id
+  select count(distinct company_id)::integer
+  into v_company_count
   from public.commercial_company_phones
   where source = 'rotas'
     and phone_normalized = v_phone;
+
+  if v_company_count = 1 then
+    select company_id
+    into v_company_id
+    from public.commercial_company_phones
+    where source = 'rotas'
+      and phone_normalized = v_phone
+    limit 1;
+  end if;
 
   if v_company_count = 1 and v_company_id is not null then
     v_lead_id := public.ensure_automatic_commercial_lead_for_company_phone(v_company_id, v_phone);
@@ -144,82 +154,6 @@ begin
       and linked_phone_normalized = v_phone
       and archived = false;
   end if;
-end;
-$$;
-
-create or replace function public.reconcile_automatic_commercial_leads_for_phone_trg()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  if tg_op = 'DELETE' then
-    if old.source = 'rotas' then
-      perform public.reconcile_automatic_commercial_leads_for_phone(old.phone_normalized);
-    end if;
-    return old;
-  end if;
-
-  if new.source = 'rotas' then
-    perform public.reconcile_automatic_commercial_leads_for_phone(new.phone_normalized);
-  end if;
-
-  if tg_op = 'UPDATE'
-     and old.source = 'rotas'
-     and old.phone_normalized is distinct from new.phone_normalized then
-    perform public.reconcile_automatic_commercial_leads_for_phone(old.phone_normalized);
-  end if;
-
-  return new;
-end;
-$$;
-
-drop trigger if exists commercial_company_phone_auto_lead_trg on public.commercial_company_phones;
-create trigger commercial_company_phone_auto_lead_trg
-after insert or update or delete on public.commercial_company_phones
-for each row execute function public.reconcile_automatic_commercial_leads_for_phone_trg();
-
-create or replace function public.attach_contact_to_automatic_commercial_lead_trg()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_phone text;
-begin
-  v_phone := coalesce(new.phone_normalized, public.normalize_br_phone(new.phone));
-  if v_phone is null then return new; end if;
-
-  perform public.reconcile_automatic_commercial_leads_for_phone(v_phone);
-
-  update public.commercial_leads l
-  set contact_id = new.id,
-      whatsapp_account_id = new.whatsapp_account_id,
-      contact_name = coalesce(c.contact_name, new.name, l.contact_name),
-      contact_phone = new.phone,
-      updated_at = now()
-  from public.commercial_companies c
-  where l.company_id = c.id
-    and l.link_source = 'automatic'
-    and l.linked_phone_normalized = v_phone
-    and exists (
-      select 1
-      from public.commercial_company_phones cp
-      where cp.source = 'rotas'
-        and cp.company_id = l.company_id
-        and cp.phone_normalized = v_phone
-    )
-    and 1 = (
-      select count(distinct cp2.company_id)
-      from public.commercial_company_phones cp2
-      where cp2.source = 'rotas'
-        and cp2.phone_normalized = v_phone
-    );
-
-  perform public.refresh_commercial_lead_metrics_for_phone(v_phone);
-  return new;
 end;
 $$;
 
@@ -348,12 +282,6 @@ begin
 end;
 $$;
 
--- Recreate the contact trigger only after the metrics function exists.
-drop trigger if exists contacts_attach_automatic_commercial_lead_trg on public.contacts;
-create trigger contacts_attach_automatic_commercial_lead_trg
-after insert or update of phone, phone_normalized, name, whatsapp_account_id on public.contacts
-for each row execute function public.attach_contact_to_automatic_commercial_lead_trg();
-
 create or replace function public.refresh_commercial_metrics_after_message_trg()
 returns trigger
 language plpgsql
@@ -370,6 +298,7 @@ begin
   where cv.id = new.conversation_id;
 
   if v_phone is not null then
+    -- If this phone is present in exactly one Rotas company, the lead is created/attached automatically.
     perform public.reconcile_automatic_commercial_leads_for_phone(v_phone);
     perform public.refresh_commercial_lead_metrics_for_phone(v_phone);
   end if;
@@ -383,7 +312,7 @@ create trigger messages_refresh_commercial_metrics_trg
 after insert on public.messages
 for each row execute function public.refresh_commercial_metrics_after_message_trg();
 
-create or replace function public.refresh_commercial_metrics_after_visit_trg()
+create or replace function public.reconcile_company_kanban_after_visit_trg()
 returns trigger
 language plpgsql
 security definer
@@ -392,36 +321,60 @@ as $$
 declare
   v_phone record;
 begin
+  -- Phone identities that no longer belong to this company in Rotas remain in history,
+  -- but must not stay visible as automatic current cards.
+  update public.commercial_leads l
+  set archived = true,
+      updated_at = now()
+  where l.company_id = new.company_id
+    and l.link_source = 'automatic'
+    and l.archived = false
+    and not exists (
+      select 1
+      from public.commercial_company_phones cp
+      where cp.source = 'rotas'
+        and cp.company_id = new.company_id
+        and cp.phone_normalized = l.linked_phone_normalized
+    );
+
   for v_phone in
-    select distinct phone_normalized
-    from public.commercial_company_phones
-    where source = 'rotas'
-      and company_id = new.company_id
+    select distinct cp.phone_normalized
+    from public.commercial_company_phones cp
+    where cp.source = 'rotas'
+      and cp.company_id = new.company_id
   loop
     perform public.reconcile_automatic_commercial_leads_for_phone(v_phone.phone_normalized);
     perform public.refresh_commercial_lead_metrics_for_phone(v_phone.phone_normalized);
   end loop;
+
   return new;
 end;
 $$;
 
-drop trigger if exists commercial_visits_refresh_metrics_trg on public.commercial_visits;
-create trigger commercial_visits_refresh_metrics_trg
-after insert or update of completed_at on public.commercial_visits
-for each row execute function public.refresh_commercial_metrics_after_visit_trg();
+drop trigger if exists commercial_visits_reconcile_automatic_kanban_trg on public.commercial_visits;
+create trigger commercial_visits_reconcile_automatic_kanban_trg
+after insert or update on public.commercial_visits
+for each row execute function public.reconcile_company_kanban_after_visit_trg();
 
--- Backfill current Rotas phone identities and their current metrics.
+-- Backfill existing mirrored visits/phones immediately when this migration is applied.
 do $$
 declare
   r record;
 begin
   for r in
-    select distinct phone_normalized
-    from public.commercial_company_phones
-    where source = 'rotas'
+    select distinct cp.phone_normalized
+    from public.commercial_company_phones cp
+    where cp.source = 'rotas'
   loop
     perform public.reconcile_automatic_commercial_leads_for_phone(r.phone_normalized);
     perform public.refresh_commercial_lead_metrics_for_phone(r.phone_normalized);
   end loop;
 end;
 $$;
+
+-- These helpers are internal. Browser roles must not invoke them directly.
+revoke execute on function public.ensure_automatic_commercial_lead_for_company_phone(uuid, text) from public, anon, authenticated;
+revoke execute on function public.reconcile_automatic_commercial_leads_for_phone(text) from public, anon, authenticated;
+revoke execute on function public.refresh_commercial_lead_metrics_for_phone(text) from public, anon, authenticated;
+revoke execute on function public.refresh_commercial_metrics_after_message_trg() from public, anon, authenticated;
+revoke execute on function public.reconcile_company_kanban_after_visit_trg() from public, anon, authenticated;
