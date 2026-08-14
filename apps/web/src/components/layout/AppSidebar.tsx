@@ -1,4 +1,4 @@
-import { Columns3, FileClock, LogOut, MessageSquareText, PanelLeftClose, PanelLeftOpen, Settings2, ShieldCheck } from 'lucide-react';
+import { Columns3, FileClock, LogOut, MessageSquareText, PanelLeftClose, PanelLeftOpen, Settings2, ShieldCheck, UsersRound } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useProfile, useWhatsAppAccounts } from '../../hooks/queries';
 import { supabase } from '../../lib/supabase';
@@ -9,6 +9,7 @@ function AdminNavigation({ collapsed }: { collapsed: boolean }) {
   const { data: accounts = [] } = useWhatsAppAccounts();
   const links = [
     { to: '/whatsapps', label: 'WhatsApps', icon: MessageSquareText, count: accounts.length },
+    { to: '/vendors', label: 'Vendedores', icon: UsersRound },
     { to: '/kanban', label: 'Kanban', icon: Columns3 },
     { to: '/audit', label: 'Auditoria', icon: FileClock },
     { to: '/settings', label: 'Configurações', icon: Settings2 },
