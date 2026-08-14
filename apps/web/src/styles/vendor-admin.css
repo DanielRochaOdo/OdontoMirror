@@ -1,0 +1,62 @@
+.account-owner { display: block; margin-top: 3px; color: var(--accent-text); font-size: 10px; font-weight: 650; }
+.account-owner.unassigned { color: var(--warning); }
+
+.vendor-assignment-dialog { display: grid; gap: 14px; max-height: min(72vh, 760px); overflow-y: auto; }
+.vendor-assignment-section { padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-soft); }
+.vendor-picker-list { display: grid; gap: 7px; margin-top: 10px; max-height: 250px; overflow-y: auto; }
+.vendor-picker-item { display: grid; grid-template-columns: auto auto 1fr; align-items: center; gap: 9px; padding: 9px; border: 1px solid var(--border-soft); border-radius: 9px; background: var(--surface); cursor: pointer; }
+.vendor-picker-item.selected { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring); }
+.vendor-picker-item input { accent-color: var(--accent); }
+.vendor-picker-item > div:last-child { min-width: 0; display: grid; gap: 2px; }
+.vendor-picker-item strong { font-size: 12px; }
+.vendor-picker-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); font-size: 10px; }
+.vendor-assignment-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.ownership-history-list { display: grid; gap: 9px; max-height: 220px; overflow-y: auto; }
+.ownership-history-item { display: grid; grid-template-columns: 12px 1fr; gap: 8px; }
+.ownership-history-item > div { display: grid; gap: 2px; }
+.ownership-history-item strong { font-size: 11px; }
+.ownership-history-item span, .ownership-history-item p { margin: 0; color: var(--text-muted); font-size: 10px; }
+
+.vendor-admin-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 14px; }
+.vendor-admin-card { display: grid; gap: 14px; padding: 15px; border: 1px solid var(--border); border-radius: 13px; background: var(--surface); color: inherit; text-decoration: none; transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease; }
+.vendor-admin-card:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); box-shadow: 0 8px 22px var(--shadow); }
+.vendor-admin-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.vendor-admin-head > div:nth-child(2) { min-width: 0; display: grid; gap: 2px; }
+.vendor-admin-head strong { font-size: 13px; }
+.vendor-admin-head span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); font-size: 10px; }
+.vendor-admin-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.vendor-admin-stats > div { min-width: 0; padding: 8px 5px; display: grid; place-items: center; gap: 2px; border: 1px solid var(--border-soft); border-radius: 8px; background: var(--surface-soft); text-align: center; }
+.vendor-admin-stats svg { color: var(--text-muted); }
+.vendor-admin-stats strong { font-size: 14px; }
+.vendor-admin-stats span { color: var(--text-muted); font-size: 9px; }
+.vendor-admin-stats .warning-stat { background: var(--warning-soft); }
+.vendor-admin-stats .warning-stat svg, .vendor-admin-stats .warning-stat strong { color: var(--warning); }
+.vendor-admin-foot { border-top: 1px solid var(--border-soft); padding-top: 9px; }
+.vendor-admin-foot span { font-size: 10px; font-weight: 650; }
+.owner-linked { color: var(--success); }
+.owner-unlinked { color: var(--warning); }
+
+.vendor-detail-heading { align-items: flex-start; }
+.back-link { display: inline-flex; align-items: center; gap: 5px; margin-bottom: 8px; color: var(--text-muted); font-size: 11px; text-decoration: none; }
+.back-link:hover { color: var(--accent-text); }
+.vendor-detail-actions { display: flex; gap: 8px; }
+.button-link { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 14px; border-radius: 9px; background: var(--accent); color: white; font-size: 12px; font-weight: 700; text-decoration: none; }
+.vendor-detail-columns { display: grid; grid-template-columns: .9fr 1.1fr; gap: 14px; }
+.vendor-account-list, .vendor-conversation-list { display: grid; gap: 8px; padding: 12px; }
+.vendor-account-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--border-soft); border-radius: 10px; background: var(--surface); color: inherit; text-decoration: none; }
+.vendor-account-card > div:nth-child(2) { min-width: 0; display: grid; gap: 2px; }
+.vendor-account-card strong { font-size: 12px; }
+.vendor-account-card span, .vendor-account-card small { color: var(--text-muted); font-size: 10px; }
+.vendor-account-status { display: inline-flex; align-items: center; gap: 4px; padding: 5px 7px; border-radius: 999px; font-size: 9px; font-weight: 700; }
+.vendor-account-status.connected { background: var(--success-soft); color: var(--success); }
+.vendor-account-status.disconnected { background: var(--surface-soft); color: var(--text-muted); }
+.vendor-conversation-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 9px; border: 1px solid var(--border-soft); border-radius: 9px; color: inherit; text-decoration: none; background: var(--surface); }
+.vendor-conversation-row > div:nth-child(2) { min-width: 0; display: grid; gap: 2px; }
+.vendor-conversation-row > div:last-child { min-width: 70px; display: grid; gap: 1px; text-align: right; }
+.vendor-conversation-row strong { font-size: 11px; }
+.vendor-conversation-row span, .vendor-conversation-row p, .vendor-conversation-row small { margin: 0; color: var(--text-muted); font-size: 9px; }
+.vendor-conversation-row p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.compact-empty { min-height: 170px; }
+
+@media (max-width: 1100px) { .vendor-admin-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .vendor-detail-columns { grid-template-columns: 1fr; } }
+@media (max-width: 700px) { .vendor-admin-grid { grid-template-columns: 1fr; } .vendor-admin-stats { grid-template-columns: repeat(2, 1fr); } .vendor-assignment-actions { flex-direction: column-reverse; } .vendor-assignment-actions button { width: 100%; } }
