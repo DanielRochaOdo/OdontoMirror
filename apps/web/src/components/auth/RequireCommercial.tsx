@@ -4,8 +4,8 @@ import { Navigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { AppLayout } from '../layout/AppLayout';
 
-export function RequireAdmin({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<'loading' | 'allowed' | 'seller' | 'denied'>('loading');
+export function RequireCommercial({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<'loading' | 'allowed' | 'denied'>('loading');
 
   useEffect(() => {
     let active = true;
@@ -14,8 +14,7 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
       if (!session) return active && setState('denied');
       const { data } = await supabase.from('profiles').select('role,active').eq('id', session.user.id).maybeSingle();
       if (!active) return;
-      if (data?.role === 'admin' && data.active === true) setState('allowed');
-      else if (data?.role === 'seller' && data.active === true) setState('seller');
+      if ((data?.role === 'admin' || data?.role === 'seller') && data.active === true) setState('allowed');
       else {
         await supabase.auth.signOut();
         if (active) setState('denied');
@@ -26,8 +25,7 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
     return () => { active = false; listener.subscription.unsubscribe(); };
   }, []);
 
-  if (state === 'loading') return <div className="login-shell"><main className="login-card-wrap"><div className="login-card"><p>Validando acesso administrativo...</p></div></main></div>;
-  if (state === 'seller') return <Navigate to="/kanban" replace />;
+  if (state === 'loading') return <div className="login-shell"><main className="login-card-wrap"><div className="login-card"><p>Validando acesso comercial...</p></div></main></div>;
   if (state === 'denied') return <Navigate to="/login" replace />;
   return <AppLayout>{children}</AppLayout>;
 }

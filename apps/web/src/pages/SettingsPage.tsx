@@ -1,14 +1,83 @@
-import { Check, KeyRound, UserRound } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { ArrowDown, ArrowUp, Check, KeyRound, Link2, Plus, RefreshCw, Trash2, UserRound, Workflow } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { CommercialLinkingPanel } from '../components/commercial/CommercialLinkingPanel';
 import { Button } from '../components/ui/button';
-import { useProfile } from '../hooks/queries';
+import { useKanbanStatuses, useProfile } from '../hooks/queries';
+import { commercialApi, type CommercialSyncStatus } from '../lib/api';
+import { createKanbanStatus, deleteKanbanStatus, updateKanbanStatus } from '../lib/commercial';
 import { supabase } from '../lib/supabase';
+import type { KanbanStatus } from '../types';
+
+function formatDateTime(value?: string | null) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(date);
+}
+
+function KanbanStatusRow({ status, index, total, onRefresh, onMove }: {
+  status: KanbanStatus;
+  index: number;
+  total: number;
+  onRefresh: () => Promise<void>;
+  onMove: (direction: -1 | 1) => Promise<void>;
+}) {
+  const [name, setName] = useState(status.name);
+  const [saving, setSaving] = useState(false);
+  const protectedInitial = status.slug === 'pos-visita';
+
+  useEffect(() => setName(status.name), [status.name]);
+
+  const patch = async (values: Parameters<typeof updateKanbanStatus>[1]) => {
+    setSaving(true);
+    try {
+      await updateKanbanStatus(status.id, values);
+      await onRefresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar a etapa.');
+    } finally { setSaving(false); }
+  };
+
+  const saveName = async () => {
+    if (name.trim().length < 2 || name.trim() === status.name) return;
+    await patch({ name: name.trim() });
+    toast.success('Nome da etapa atualizado.');
+  };
+
+  const move = async (direction: -1 | 1) => {
+    setSaving(true);
+    try { await onMove(direction); }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível reordenar as etapas.'); }
+    finally { setSaving(false); }
+  };
+
+  const remove = async () => {
+    setSaving(true);
+    try {
+      await deleteKanbanStatus(status.id);
+      await onRefresh();
+      toast.success('Etapa excluída.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível excluir a etapa.');
+    } finally { setSaving(false); }
+  };
+
+  return <div className="kanban-status-row">
+    <span className={`status-dot status-${status.colorKey}`} />
+    <input type="text" value={name} disabled={saving} onChange={(event) => setName(event.target.value)} onBlur={() => void saveName()} onKeyDown={(event) => { if (event.key === 'Enter') void saveName(); }} />
+    <div className="status-order-actions"><button type="button" title="Mover etapa para cima" disabled={saving || index === 0} onClick={() => void move(-1)}><ArrowUp size={14} /></button><button type="button" title="Mover etapa para baixo" disabled={saving || index === total - 1} onClick={() => void move(1)}><ArrowDown size={14} /></button></div>
+    <label className="checkbox-filter"><input type="checkbox" checked={status.isTerminal} disabled={saving} onChange={(event) => void patch({ isTerminal: event.target.checked })} /> Final</label>
+    <label className="checkbox-filter"><input type="checkbox" checked={status.active} disabled={saving || protectedInitial} onChange={(event) => void patch({ active: event.target.checked })} /> Ativa</label>
+    <button className="status-delete-button" type="button" title={protectedInitial ? 'A etapa inicial não pode ser excluída' : 'Excluir etapa sem leads'} disabled={saving || protectedInitial} onClick={() => void remove()}><Trash2 size={14} /></button>
+  </div>;
+}
 
 export function SettingsPage() {
   const queryClient = useQueryClient();
   const { data: profile } = useProfile();
+  const { data: statuses = [] } = useKanbanStatuses(true);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -16,8 +85,40 @@ export function SettingsPage() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [syncInfo, setSyncInfo] = useState<CommercialSyncStatus | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [newStatusName, setNewStatusName] = useState('');
+  const [addingStatus, setAddingStatus] = useState(false);
 
-  useEffect(() => { if (profile) setName(profile.name); void supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? '')); }, [profile]);
+  const orderedStatuses = useMemo(() => [...statuses].sort((a, b) => a.position - b.position), [statuses]);
+  const lastRun = syncInfo?.runs[0];
+
+  const loadSync = async () => {
+    try { setSyncInfo(await commercialApi.syncStatus()); }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível consultar a integração com o Rotas.'); }
+  };
+
+  useEffect(() => {
+    if (profile) setName(profile.name);
+    void supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? ''));
+    void loadSync();
+  }, [profile]);
+
+  const refreshStatuses = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['commercial-kanban-statuses'] });
+  };
+
+  const moveStatus = async (index: number, direction: -1 | 1) => {
+    const targetIndex = index + direction;
+    const current = orderedStatuses[index];
+    const target = orderedStatuses[targetIndex];
+    if (!current || !target) return;
+    await Promise.all([
+      updateKanbanStatus(current.id, { position: target.position }),
+      updateKanbanStatus(target.id, { position: current.position }),
+    ]);
+    await refreshStatuses();
+  };
 
   const saveProfile = async () => {
     if (!profile || name.trim().length < 2) return toast.error('Informe um nome válido.');
@@ -44,5 +145,46 @@ export function SettingsPage() {
     setPassword(''); setConfirmPassword(''); toast.success('Senha alterada com sucesso.');
   };
 
-  return <div className="page-stack narrow-page"><div className="page-heading"><div><p className="eyebrow">ACESSO ADMINISTRATIVO</p><h1>Configurações</h1><p className="page-subtitle">Gerencie os dados reais da sua conta administrativa.</p></div></div><section className="settings-section"><div className="settings-section-head"><div className="settings-icon"><UserRound size={18} /></div><div><h2>Perfil administrativo</h2><p>Nome e e-mail do usuário autenticado</p></div></div><div className="settings-form-grid"><label>Nome completo<input value={name} onChange={(event) => setName(event.target.value)} /></label><label>E-mail<input value={email} onChange={(event) => setEmail(event.target.value)} type="email" /></label><label>Cargo<input value="Administrador" disabled /></label></div><div className="settings-actions"><span>{saved && <><Check size={15} /> Alterações salvas</>}</span><Button disabled={savingProfile} onClick={() => void saveProfile()}>{savingProfile ? 'Salvando...' : 'Salvar perfil'}</Button></div></section><section className="settings-section"><div className="settings-section-head"><div className="settings-icon"><KeyRound size={18} /></div><div><h2>Alterar senha</h2><p>Atualize a senha da conta autenticada no Supabase.</p></div></div><div className="settings-form-grid"><label>Nova senha<input type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} /></label><label>Confirmar nova senha<input type="password" autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} /></label></div><div className="settings-actions"><span /><Button disabled={savingPassword || !password} onClick={() => void changePassword()}>{savingPassword ? 'Alterando...' : 'Alterar senha'}</Button></div></section></div>;
+  const runSync = async () => {
+    setSyncing(true);
+    try {
+      const result = await commercialApi.sync();
+      toast.success(`Sincronização concluída: ${result.companiesSynced} empresas, ${result.vendorsSynced} vendedores e ${result.leadsLinked} novos vínculos.`);
+      await Promise.all([
+        loadSync(),
+        queryClient.invalidateQueries({ queryKey: ['commercial-leads'] }),
+        queryClient.invalidateQueries({ queryKey: ['commercial-vendors'] }),
+        queryClient.invalidateQueries({ queryKey: ['commercial-companies'] }),
+        queryClient.invalidateQueries({ queryKey: ['commercial-unmatched-contacts'] }),
+      ]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Falha ao sincronizar o Rotas.');
+    } finally { setSyncing(false); }
+  };
+
+  const addStatus = async () => {
+    if (newStatusName.trim().length < 2) return toast.error('Informe um nome para a nova etapa.');
+    setAddingStatus(true);
+    try {
+      const maxPosition = orderedStatuses.reduce((max, status) => Math.max(max, status.position), 0);
+      await createKanbanStatus({ name: newStatusName.trim(), position: maxPosition + 10 });
+      setNewStatusName('');
+      await refreshStatuses();
+      toast.success('Nova etapa adicionada ao Kanban.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível criar a etapa.');
+    } finally { setAddingStatus(false); }
+  };
+
+  return <div className="page-stack narrow-page"><div className="page-heading"><div><p className="eyebrow">ACESSO ADMINISTRATIVO</p><h1>Configurações</h1><p className="page-subtitle">Gerencie conta, integração com o Rotas e jornada comercial.</p></div></div>
+    <section className="settings-section"><div className="settings-section-head"><div className="settings-icon"><Workflow size={18} /></div><div><h2>Integração comercial com o Rotas</h2><p>Empresas, vendedores e responsáveis do Kanban são atualizados automaticamente a partir das visitas.</p></div></div><div className="commercial-settings-grid"><div className="sync-health-row"><div className="sync-health-meta"><span>Integração: <strong>{syncInfo?.configured ? 'Configurada' : 'Não configurada'}</strong></span><span>Última execução: <strong>{formatDateTime(lastRun?.finished_at ?? lastRun?.started_at)}</strong></span><span>Resultado: <strong>{lastRun?.status === 'success' ? 'Sucesso' : lastRun?.status === 'running' ? 'Em andamento' : lastRun?.status === 'error' ? 'Erro' : '—'}</strong></span></div><Button disabled={syncing || !syncInfo?.configured} onClick={() => void runSync()}><RefreshCw size={16} className={syncing ? 'spin-icon' : ''} /> {syncing ? 'Sincronizando...' : 'Sincronizar agora'}</Button></div>{lastRun?.status === 'success' && <div className="sync-health-meta"><span>{lastRun.vendors_synced} vendedores</span><span>{lastRun.companies_synced} empresas</span><span>{lastRun.visits_synced} visitas</span><span>{lastRun.leads_linked} novos leads vinculados</span><span>{lastRun.assignments_changed} alterações de responsáveis</span></div>}{lastRun?.error_message && <p className="field-error">{lastRun.error_message}</p>}</div></section>
+
+    <section className="settings-section"><div className="settings-section-head"><div className="settings-icon"><Link2 size={18} /></div><div><h2>Contatos sem vínculo automático</h2><p>Use somente quando o telefone do WhatsApp não puder ser associado com segurança a uma única empresa do Rotas.</p></div></div><CommercialLinkingPanel /></section>
+
+    <section className="settings-section"><div className="settings-section-head"><div className="settings-icon"><Workflow size={18} /></div><div><h2>Etapas do Kanban</h2><p>O administrador define a jornada; vendedores apenas movimentam seus leads entre estas etapas.</p></div></div><div className="commercial-settings-grid"><div className="kanban-status-list">{orderedStatuses.map((status, index) => <KanbanStatusRow key={status.id} status={status} index={index} total={orderedStatuses.length} onRefresh={refreshStatuses} onMove={(direction) => moveStatus(index, direction)} />)}</div><div className="new-status-row"><input value={newStatusName} onChange={(event) => setNewStatusName(event.target.value)} placeholder="Nome da nova etapa" onKeyDown={(event) => { if (event.key === 'Enter') void addStatus(); }} /><Button disabled={addingStatus || newStatusName.trim().length < 2} onClick={() => void addStatus()}><Plus size={16} /> Adicionar etapa</Button></div></div></section>
+
+    <section className="settings-section"><div className="settings-section-head"><div className="settings-icon"><UserRound size={18} /></div><div><h2>Perfil administrativo</h2><p>Nome e e-mail do usuário autenticado</p></div></div><div className="settings-form-grid"><label>Nome completo<input value={name} onChange={(event) => setName(event.target.value)} /></label><label>E-mail<input value={email} onChange={(event) => setEmail(event.target.value)} type="email" /></label><label>Cargo<input value="Administrador" disabled /></label></div><div className="settings-actions"><span>{saved && <><Check size={15} /> Alterações salvas</>}</span><Button disabled={savingProfile} onClick={() => void saveProfile()}>{savingProfile ? 'Salvando...' : 'Salvar perfil'}</Button></div></section>
+
+    <section className="settings-section"><div className="settings-section-head"><div className="settings-icon"><KeyRound size={18} /></div><div><h2>Alterar senha</h2><p>Atualize a senha da conta administrativa autenticada no Supabase.</p></div></div><div className="settings-form-grid"><label>Nova senha<input type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} /></label><label>Confirmar nova senha<input type="password" autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} /></label></div><div className="settings-actions"><span /><Button disabled={savingPassword || !password} onClick={() => void changePassword()}>{savingPassword ? 'Alterando...' : 'Alterar senha'}</Button></div></section>
+  </div>;
 }

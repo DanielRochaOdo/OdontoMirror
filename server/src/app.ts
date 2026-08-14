@@ -2,7 +2,9 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
+import { CommercialSyncService } from './commercial/CommercialSyncService.js';
 import { env } from './config/env.js';
+import { commercialRoutes } from './routes/commercial.js';
 import { healthRoutes } from './routes/health.js';
 import { whatsappRoutes } from './routes/whatsapp.js';
 import { WhatsAppSessionManager } from './whatsapp/WhatsAppSessionManager.js';
@@ -21,10 +23,18 @@ export async function buildApp() {
   await app.register(helmet);
   await app.register(cors, { origin: env.FRONTEND_URL, credentials: true });
   await app.register(rateLimit, { max: 120, timeWindow: '1 minute' });
+
   const manager = new WhatsAppSessionManager(new WhatsAppProviderImplementation());
+  const commercialService = new CommercialSyncService();
+
   await app.register(healthRoutes, { manager });
   await app.register(whatsappRoutes, { manager });
+  await app.register(commercialRoutes, { service: commercialService });
+
   await manager.restore();
+  commercialService.start();
+  app.addHook('onClose', async () => { commercialService.stop(); });
+
   app.setErrorHandler((cause, request, response) => {
     const error = cause instanceof Error ? cause : new Error('Falha desconhecida no servidor.');
     const statusCode = statusCodeFrom(cause);
