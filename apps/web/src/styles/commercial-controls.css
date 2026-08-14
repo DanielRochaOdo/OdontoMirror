@@ -1,0 +1,14 @@
+.status-delete-button {
+  width: 32px;
+  height: 32px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--danger);
+  cursor: pointer;
+}
+.status-delete-button:disabled { opacity: .35; cursor: default; }
+.spin-icon { animation: mirror-spin .8s linear infinite; }
+@keyframes mirror-spin { to { transform: rotate(360deg); } }
