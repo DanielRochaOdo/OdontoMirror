@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowRight,
@@ -247,12 +248,13 @@ function LeadDetailDialog({ lead, statuses, isAdmin, onClose }: {
 
 export function KanbanPage() {
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
   const { data: profile } = useProfile();
   const { data: statuses = [], isLoading: loadingStatuses } = useKanbanStatuses();
   const { data: leads = [], isLoading: loadingLeads } = useCommercialLeads();
   const { data: vendors = [] } = useCommercialVendors();
   const [search, setSearch] = useState('');
-  const [vendorFilter, setVendorFilter] = useState('all');
+  const [vendorFilter, setVendorFilter] = useState(() => searchParams.get('vendor') ?? 'all');
   const [temperatureFilter, setTemperatureFilter] = useState<'all' | LeadTemperature>('all');
   const [onlyNoFollowup, setOnlyNoFollowup] = useState(false);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
