@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { AppLayout } from '../layout/AppLayout';
 
 export function RequireAdmin({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<'loading' | 'allowed' | 'denied'>('loading');
+  const [state, setState] = useState<'loading' | 'allowed' | 'seller' | 'denied'>('loading');
 
   useEffect(() => {
     let active = true;
@@ -15,7 +15,11 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
       const { data } = await supabase.from('profiles').select('role,active').eq('id', session.user.id).maybeSingle();
       if (!active) return;
       if (data?.role === 'admin' && data.active === true) setState('allowed');
-      else { await supabase.auth.signOut(); if (active) setState('denied'); }
+      else if (data?.role === 'seller' && data.active === true) setState('seller');
+      else {
+        await supabase.auth.signOut();
+        if (active) setState('denied');
+      }
     };
     void check();
     const { data: listener } = supabase.auth.onAuthStateChange(() => { void check(); });
@@ -23,6 +27,7 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
   }, []);
 
   if (state === 'loading') return <div className="login-shell"><main className="login-card-wrap"><div className="login-card"><p>Validando acesso administrativo...</p></div></main></div>;
+  if (state === 'seller') return <Navigate to="/kanban" replace />;
   if (state === 'denied') return <Navigate to="/login" replace />;
   return <AppLayout>{children}</AppLayout>;
 }
