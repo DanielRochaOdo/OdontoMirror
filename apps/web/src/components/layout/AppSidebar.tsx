@@ -37,7 +37,7 @@ export function AppSidebar() {
   };
 
   return <aside className={`sidebar ${collapsed ? 'sidebar-collapsed' : ''}`}>
-    <div className="brand"><div className="brand-mark"><ShieldCheck size={19} /></div>{!collapsed && <div><strong>MirrorDesk</strong><span>{isAdmin ? 'auditoria corporativa' : 'acompanhamento comercial'}</span></div>}</div>
+    <div className="brand"><div className="brand-mark"><ShieldCheck size={19} /></div>{!collapsed && <div><strong>Odontoart Connect</strong><span>{isAdmin ? 'auditoria corporativa' : 'acompanhamento comercial'}</span></div>}</div>
     <div className="sidebar-section-label">{!collapsed && (isAdmin ? 'Workspace' : 'Comercial')}</div>
     <nav className="nav-list">{isAdmin ? <AdminNavigation collapsed={collapsed} /> : <SellerNavigation collapsed={collapsed} />}</nav>
     <div className="sidebar-bottom"><div className="profile-chip"><div className="avatar avatar-small avatar-indigo">{initials}</div>{!collapsed && <div><strong>{profile?.name ?? roleLabel}</strong><span>{roleLabel}</span></div>}</div><button className="logout-button" title="Sair" onClick={() => void logout()}><LogOut size={17} />{!collapsed && <span>Sair</span>}</button><button className="collapse-button" onClick={toggle} aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}>{collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}</button></div>
