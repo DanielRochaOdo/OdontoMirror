@@ -9,12 +9,15 @@ import { KanbanPage } from './pages/KanbanPage';
 import { LoginPage } from './pages/LoginPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { VendorDetailPage } from './pages/VendorDetailPage';
+import { VendorsPage } from './pages/VendorsPage';
 import { WhatsAppsPage } from './pages/WhatsAppsPage';
 import './styles/index.css';
 import './styles/theme.css';
 import './styles/commercial.css';
 import './styles/commercial-controls.css';
 import './styles/commercial-linking.css';
+import './styles/vendor-admin.css';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 15_000, retry: 1 } } });
 
@@ -26,6 +29,8 @@ export function App() {
     <Route path="/whatsapps" element={<RequireAdmin><WhatsAppsPage /></RequireAdmin>} />
     <Route path="/whatsapps/:accountId/conversations" element={<RequireAdmin><ConversationsPage /></RequireAdmin>} />
     <Route path="/whatsapps/:accountId/conversations/:conversationId" element={<RequireAdmin><ConversationsPage /></RequireAdmin>} />
+    <Route path="/vendors" element={<RequireAdmin><VendorsPage /></RequireAdmin>} />
+    <Route path="/vendors/:vendorId" element={<RequireAdmin><VendorDetailPage /></RequireAdmin>} />
     <Route path="/audit" element={<RequireAdmin><AuditPage /></RequireAdmin>} />
     <Route path="/settings" element={<RequireAdmin><SettingsPage /></RequireAdmin>} />
     <Route path="*" element={<Navigate to="/login" replace />} />
