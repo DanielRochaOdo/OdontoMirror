@@ -17,6 +17,7 @@ Painel corporativo de conferência/auditoria de WhatsApp e acompanhamento comerc
 ### Vendedor
 
 - acesso somente ao Kanban comercial;
+- login com o mesmo e-mail e senha usados no sistema de Rotas;
 - visualização apenas dos leads em que está atualmente direcionado pelo Rotas;
 - possibilidade de compartilhar o mesmo lead com outros vendedores responsáveis;
 - movimentação das etapas;
@@ -58,17 +59,17 @@ O Mirror calcula dados derivados sem expor mensagens aos vendedores:
 
 ## Acesso dos vendedores
 
-Os vendedores são sincronizados a partir do Rotas. O e-mail é usado na experiência de login, enquanto o vínculo interno usa o identificador estável do usuário do Rotas.
+Os vendedores são sincronizados a partir do Rotas. O vínculo interno usa o identificador estável do usuário do Rotas.
 
-A senha do Rotas não é copiada. O vendedor solicita um magic link pelo próprio e-mail e entra diretamente em `/kanban`.
+Na aba **Vendedor**, o usuário informa o mesmo e-mail e a mesma senha que utiliza no sistema de Rotas. O backend do Mirror valida essas credenciais diretamente no Supabase Auth do Rotas com `signInWithPassword`, confirma que o perfil possui role `VENDEDOR` e está ativo e, somente depois disso, libera uma sessão própria do Mirror para o Kanban.
 
-Para produção, inclua a URL pública do Mirror nas URLs de redirecionamento permitidas do Supabase Auth para que o magic link possa retornar a `/kanban`.
+A senha do Rotas **não é copiada nem armazenada no banco do Mirror**. Ela é utilizada apenas durante a requisição de autenticação e é removida dos logs do backend. A sessão do Mirror é emitida com um token de uso único gerado pelo próprio Auth do Mirror. Se a senha do vendedor mudar no Rotas, a nova senha passa a ser exigida no próximo login no Mirror.
 
 ## Regra read-only do WhatsApp e do Rotas
 
 O backend do WhatsApp não expõe operação de envio, resposta, reação, edição ou exclusão de mensagem. A integração continua dedicada à leitura/sincronização.
 
-O cliente do Rotas fica exclusivamente no backend do Mirror e contém apenas consultas de leitura. O repositório `Odontoart-rotas` não é alterado por esta integração.
+O cliente de dados do Rotas fica exclusivamente no backend do Mirror e contém apenas consultas de leitura. A autenticação comercial chama apenas o Supabase Auth do Rotas para validar as credenciais informadas. O repositório `Odontoart-rotas` não é alterado por esta integração.
 
 ## Requisitos
 
@@ -77,7 +78,7 @@ O cliente do Rotas fica exclusivamente no backend do Mirror e contém apenas con
 - projeto Supabase do Mirror com Auth, PostgreSQL, Storage e Realtime;
 - ambiente capaz de executar Chromium/Puppeteer;
 - usuário administrador no Supabase Auth com `public.profiles.role = 'admin'` e `active = true`;
-- credenciais server-side para leitura do projeto Rotas.
+- URL, anon key e service role key server-side do projeto Rotas.
 
 > A conexão por QR Code usa `whatsapp-web.js`, que se conecta ao WhatsApp Web e não é a API oficial Meta Cloud. Mudanças no WhatsApp Web podem exigir atualização da biblioteca.
 
@@ -94,11 +95,12 @@ Preencha as variáveis do Supabase do Mirror e, no backend, as variáveis do Rot
 
 ```env
 ROTAS_SUPABASE_URL=
+ROTAS_SUPABASE_ANON_KEY=
 ROTAS_SUPABASE_SERVICE_ROLE_KEY=
 ROTAS_SYNC_INTERVAL_SECONDS=300
 ```
 
-Essas credenciais nunca devem ser expostas como variáveis `VITE_*`.
+Essas credenciais nunca devem ser expostas como variáveis `VITE_*`. A `ROTAS_SUPABASE_ANON_KEY` é usada para autenticação normal do vendedor; a service role permanece restrita às leituras administrativas do backend.
 
 ## Banco
 
