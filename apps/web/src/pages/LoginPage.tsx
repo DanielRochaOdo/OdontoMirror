@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowRight, Eye, EyeOff, LockKeyhole, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff, Link2, LockKeyhole, ShieldCheck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
@@ -10,24 +10,41 @@ import { Button } from '../components/ui/button';
 import { logAuditEvent } from '../lib/audit';
 import { supabase } from '../lib/supabase';
 
-const schema = z.object({ email: z.string().email('Informe um e-mail válido'), password: z.string().min(6, 'A senha deve ter pelo menos 6 caracteres') });
+const schema = z.object({ email: z.string().email('Informe um e-mail válido'), password: z.string().optional() });
 type LoginData = z.infer<typeof schema>;
+type LoginMode = 'admin' | 'seller';
 
 export function LoginPage() {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
+  const [mode, setMode] = useState<LoginMode>('admin');
+  const [sendingLink, setSendingLink] = useState(false);
   const { register, handleSubmit, getValues, formState: { errors, isSubmitting } } = useForm<LoginData>({ resolver: zodResolver(schema), defaultValues: { email: '', password: '' } });
 
   useEffect(() => {
     void supabase.auth.getSession().then(async ({ data }) => {
       if (!data.session) return;
       const { data: profile } = await supabase.from('profiles').select('role,active').eq('id', data.session.user.id).maybeSingle();
-      if (profile?.role === 'admin' && profile.active === true) navigate('/whatsapps', { replace: true });
+      if (profile?.active === true && profile.role === 'admin') navigate('/whatsapps', { replace: true });
+      else if (profile?.active === true && profile.role === 'seller') navigate('/kanban', { replace: true });
       else await supabase.auth.signOut();
     });
   }, [navigate]);
 
   const onSubmit = async (data: LoginData) => {
+    if (mode === 'seller') {
+      setSendingLink(true);
+      const { error } = await supabase.auth.signInWithOtp({
+        email: data.email,
+        options: { shouldCreateUser: false, emailRedirectTo: `${window.location.origin}/kanban` },
+      });
+      setSendingLink(false);
+      if (error) return toast.error('Não foi possível liberar o acesso. Confirme se este e-mail está ativo no Rotas.');
+      toast.success('Enviamos o link de acesso ao seu e-mail.');
+      return;
+    }
+
+    if (!data.password || data.password.length < 6) return toast.error('Informe sua senha administrativa.');
     const { data: auth, error } = await supabase.auth.signInWithPassword({ email: data.email, password: data.password });
     if (error) return toast.error('E-mail ou senha inválidos.');
     const { data: profile } = await supabase.from('profiles').select('role,active,name').eq('id', auth.user.id).maybeSingle();
@@ -47,5 +64,7 @@ export function LoginPage() {
     toast.success('Enviamos o link de recuperação para o e-mail informado.');
   };
 
-  return <div className="login-shell"><div className="login-theme-toggle"><ThemeToggle /></div><div className="login-visual"><div className="login-visual-content"><div className="brand brand-light"><div className="brand-mark"><ShieldCheck size={19} /></div><div><strong>MirrorDesk</strong><span>auditoria corporativa</span></div></div><div className="visual-copy"><p className="eyebrow">PAINEL DE CONFERÊNCIA</p><h1>Clareza para cada conversa corporativa.</h1><p>Um espaço seguro para consultar o histórico dos números oficiais com rastreabilidade e controle.</p></div><div className="visual-stat"><span className="stat-pulse" /><div><strong>Ambiente protegido</strong><small>Somente leitura · acesso administrativo</small></div></div></div><div className="visual-orbit orbit-one" /><div className="visual-orbit orbit-two" /><div className="visual-grid" /></div><main className="login-card-wrap"><div className="login-card"><div className="mobile-brand brand"><div className="brand-mark"><ShieldCheck size={19} /></div><strong>MirrorDesk</strong></div><div className="login-heading"><span className="login-icon"><LockKeyhole size={19} /></span><p className="eyebrow">ACESSO ADMINISTRATIVO</p><h2>Bem-vindo de volta</h2><p>Entre para acessar o painel de conferência.</p></div><form onSubmit={handleSubmit(onSubmit)} className="login-form"><label>E-mail<input type="email" placeholder="admin@empresa.com.br" autoComplete="email" {...register('email')} />{errors.email && <small className="field-error">{errors.email.message}</small>}</label><label>Senha<div className="password-field"><input type={showPassword ? 'text' : 'password'} autoComplete="current-password" {...register('password')} /><button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></div>{errors.password && <small className="field-error">{errors.password.message}</small>}</label><div className="form-meta"><span /><button type="button" className="link-button" onClick={() => void recover()}>Esqueci minha senha</button></div><Button type="submit" size="lg" disabled={isSubmitting}>{isSubmitting ? 'Autenticando...' : 'Entrar no painel'} {!isSubmitting && <ArrowRight size={17} />}</Button></form><p className="login-footnote"><ShieldCheck size={14} /> Seus acessos e visualizações são registrados para auditoria.</p></div><footer>© 2026 MirrorDesk · Ambiente corporativo</footer></main></div>;
+  const submitting = isSubmitting || sendingLink;
+
+  return <div className="login-shell"><div className="login-theme-toggle"><ThemeToggle /></div><div className="login-visual"><div className="login-visual-content"><div className="brand brand-light"><div className="brand-mark"><ShieldCheck size={19} /></div><div><strong>MirrorDesk</strong><span>auditoria e acompanhamento comercial</span></div></div><div className="visual-copy"><p className="eyebrow">AMBIENTE CORPORATIVO</p><h1>Da conversa à continuidade comercial.</h1><p>Administradores conferem os canais oficiais; vendedores acompanham exclusivamente a jornada dos leads direcionados pelo sistema de Rotas.</p></div><div className="visual-stat"><span className="stat-pulse" /><div><strong>Acessos separados por função</strong><small>WhatsApp e auditoria restritos ao administrador</small></div></div></div><div className="visual-orbit orbit-one" /><div className="visual-orbit orbit-two" /><div className="visual-grid" /></div><main className="login-card-wrap"><div className="login-card"><div className="mobile-brand brand"><div className="brand-mark"><ShieldCheck size={19} /></div><strong>MirrorDesk</strong></div><div className="login-heading"><span className="login-icon">{mode === 'admin' ? <LockKeyhole size={19} /> : <Link2 size={19} />}</span><p className="eyebrow">{mode === 'admin' ? 'ACESSO ADMINISTRATIVO' : 'ACESSO COMERCIAL'}</p><h2>Bem-vindo de volta</h2><p>{mode === 'admin' ? 'Entre para acessar o painel de conferência.' : 'Use o mesmo e-mail cadastrado para você no sistema de Rotas.'}</p></div><div className="login-role-switch"><button type="button" className={mode === 'admin' ? 'active' : ''} onClick={() => setMode('admin')}>Administrador</button><button type="button" className={mode === 'seller' ? 'active' : ''} onClick={() => setMode('seller')}>Vendedor</button></div><form onSubmit={handleSubmit(onSubmit)} className="login-form"><label>E-mail<input type="email" placeholder={mode === 'admin' ? 'admin@empresa.com.br' : 'vendedor@empresa.com.br'} autoComplete="email" {...register('email')} />{errors.email && <small className="field-error">{errors.email.message}</small>}</label>{mode === 'admin' && <label>Senha<div className="password-field"><input type={showPassword ? 'text' : 'password'} autoComplete="current-password" {...register('password')} /><button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></div></label>}{mode === 'seller' && <p className="login-helper">Você receberá um link seguro de acesso. Nenhuma senha do Rotas é copiada ou compartilhada com o Mirror.</p>}<div className="form-meta"><span />{mode === 'admin' && <button type="button" className="link-button" onClick={() => void recover()}>Esqueci minha senha</button>}</div><Button type="submit" size="lg" disabled={submitting}>{submitting ? (mode === 'seller' ? 'Enviando link...' : 'Autenticando...') : (mode === 'seller' ? 'Receber link de acesso' : 'Entrar no painel')} {!submitting && <ArrowRight size={17} />}</Button></form><p className="login-footnote"><ShieldCheck size={14} /> {mode === 'admin' ? 'Seus acessos e visualizações são registrados para auditoria.' : 'Você terá acesso apenas aos leads comerciais associados às suas visitas.'}</p></div><footer>© 2026 MirrorDesk · Ambiente corporativo</footer></main></div>;
 }
