@@ -18,6 +18,6 @@ export function normalizePhone(value: string | null | undefined): string | null 
 
 export function extractPhones(value: string | null | undefined): string[] {
   if (!value) return [];
-  const candidates = value.match(/\+?\d[\d\s()./-]{7,}\d/g) ?? [value];
+  const candidates = value.match(/\+?\d(?:[\s().-]*\d){7,12}/g) ?? [value];
   return [...new Set(candidates.map(normalizePhone).filter((item): item is string => Boolean(item)))];
 }
