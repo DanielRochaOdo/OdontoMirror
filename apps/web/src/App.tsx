@@ -18,6 +18,7 @@ import './styles/commercial.css';
 import './styles/commercial-controls.css';
 import './styles/commercial-linking.css';
 import './styles/vendor-admin.css';
+import './styles/commercial-contact-admin.css';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 15_000, retry: 1 } } });
 
