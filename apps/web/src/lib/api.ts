@@ -3,6 +3,28 @@ import { supabase } from './supabase';
 const apiUrl = (import.meta.env.VITE_API_URL?.trim() || 'http://localhost:3333').replace(/\/$/, '');
 const isNgrokFreeEndpoint = apiUrl.includes('.ngrok-free.app') || apiUrl.includes('.ngrok-free.dev');
 
+async function parseResponse<T>(response: Response): Promise<T> {
+  const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
+  if (!response.ok) {
+    throw new Error(typeof payload.message === 'string' ? payload.message : typeof payload.error === 'string' ? payload.error : `Falha na API (HTTP ${response.status}).`);
+  }
+  return payload as T;
+}
+
+async function publicRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers = new Headers(init.headers);
+  if (isNgrokFreeEndpoint) headers.set('ngrok-skip-browser-warning', '1');
+  if (init.body != null && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+
+  let response: Response;
+  try {
+    response = await fetch(`${apiUrl}${path}`, { ...init, headers });
+  } catch {
+    throw new Error(`Não foi possível conectar à API do OdontoMirror em ${apiUrl}.`);
+  }
+  return parseResponse<T>(response);
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('Sessão expirada.');
@@ -14,19 +36,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   let response: Response;
   try {
-    response = await fetch(`${apiUrl}${path}`, {
-      ...init,
-      headers,
-    });
+    response = await fetch(`${apiUrl}${path}`, { ...init, headers });
   } catch {
     throw new Error(`Não foi possível conectar à API do OdontoMirror em ${apiUrl}.`);
   }
-
-  const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
-  if (!response.ok) {
-    throw new Error(typeof payload.message === 'string' ? payload.message : typeof payload.error === 'string' ? payload.error : `Falha na API (HTTP ${response.status}).`);
-  }
-  return payload as T;
+  return parseResponse<T>(response);
 }
 
 export interface CreatedWhatsAppAccount {
@@ -50,6 +64,15 @@ export interface ApiHealth {
   service: string;
   readOnly: boolean;
   timestamp: string;
+}
+
+export interface SellerLoginResult {
+  tokenHash: string;
+  type: 'magiclink';
+  seller: {
+    name: string;
+    email: string;
+  };
 }
 
 export interface CommercialSyncResult {
@@ -78,6 +101,13 @@ export interface CommercialSyncStatus {
     metadata: Record<string, unknown>;
   }>;
 }
+
+export const authApi = {
+  sellerLogin: (email: string, password: string) => publicRequest<SellerLoginResult>('/api/auth/seller-login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  }),
+};
 
 export const whatsappApi = {
   createAccount: (body: { name: string; description?: string }) => request<CreatedWhatsAppAccount>('/api/whatsapp/accounts', { method: 'POST', body: JSON.stringify(body) }),
