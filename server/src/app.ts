@@ -6,6 +6,7 @@ import { CommercialSyncService } from './commercial/CommercialSyncService.js';
 import { env } from './config/env.js';
 import { commercialRoutes } from './routes/commercial.js';
 import { healthRoutes } from './routes/health.js';
+import { sellerAuthRoutes } from './routes/sellerAuth.js';
 import { whatsappRoutes } from './routes/whatsapp.js';
 import { WhatsAppSessionManager } from './whatsapp/WhatsAppSessionManager.js';
 import { WhatsAppProviderImplementation } from './whatsapp/providers/WhatsAppProviderImplementation.js';
@@ -19,7 +20,17 @@ function statusCodeFrom(cause: unknown) {
 }
 
 export async function buildApp() {
-  const app = Fastify({ logger: { redact: ['req.headers.authorization', 'req.headers.cookie', 'body.qrCode'] } });
+  const app = Fastify({
+    logger: {
+      redact: [
+        'req.headers.authorization',
+        'req.headers.cookie',
+        'body.qrCode',
+        'body.password',
+        'req.body.password',
+      ],
+    },
+  });
   await app.register(helmet);
   await app.register(cors, { origin: env.FRONTEND_URL, credentials: true });
   await app.register(rateLimit, { max: 120, timeWindow: '1 minute' });
@@ -28,6 +39,7 @@ export async function buildApp() {
   const commercialService = new CommercialSyncService();
 
   await app.register(healthRoutes, { manager });
+  await app.register(sellerAuthRoutes);
   await app.register(whatsappRoutes, { manager });
   await app.register(commercialRoutes, { service: commercialService });
 
