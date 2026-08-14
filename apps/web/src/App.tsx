@@ -13,6 +13,7 @@ import { WhatsAppsPage } from './pages/WhatsAppsPage';
 import './styles/index.css';
 import './styles/theme.css';
 import './styles/commercial.css';
+import './styles/commercial-controls.css';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 15_000, retry: 1 } } });
 
