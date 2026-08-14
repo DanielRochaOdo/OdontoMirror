@@ -10,6 +10,9 @@ import {
   type RotasVisit,
   type RotasVendor,
 } from '../rotas/readClient.js';
+import { extractPhones, normalizePhone } from './phone.js';
+
+export { extractPhones, normalizePhone } from './phone.js';
 
 type MirrorAuthUser = { id: string; email?: string | null };
 type VendorRow = { id: string; rotas_user_id: string; mirror_user_id: string | null; email: string | null };
@@ -21,9 +24,10 @@ type LeadRow = {
   contact_id: string | null;
   linked_phone_normalized: string | null;
   link_source: 'automatic' | 'manual';
+  automatic_phone_normalized?: string | null;
 };
 type AssignmentRow = { id: string; lead_id: string; vendor_id: string };
-type ConversationRow = { id: string; contact_id: string | null };
+type ConversationRow = { id: string; contact_id: string | null; external_chat_id: string };
 type MessageMetricRow = { conversation_id: string; direction: 'inbound' | 'outbound'; sent_at: string };
 
 type SyncSummary = {
@@ -48,20 +52,6 @@ function chunks<T>(items: T[], size = BATCH_SIZE): T[][] {
 
 function normalizedEmail(email: string | null | undefined) {
   return email?.trim().toLowerCase() || null;
-}
-
-export function normalizePhone(value: string | null | undefined): string | null {
-  if (!value) return null;
-  let digits = value.replace(/\D/g, '').replace(/^0+/, '');
-  if (digits.length === 10 || digits.length === 11) digits = `55${digits}`;
-  if ((digits.length === 12 || digits.length === 13) && digits.startsWith('55')) return digits;
-  return digits.length >= 10 ? digits : null;
-}
-
-export function extractPhones(value: string | null | undefined): string[] {
-  if (!value) return [];
-  const candidates = value.match(/\+?\d[\d\s()./-]{7,}\d/g) ?? [value];
-  return [...new Set(candidates.map(normalizePhone).filter((item): item is string => Boolean(item)))];
 }
 
 function todayInFortaleza() {
@@ -261,14 +251,20 @@ async function syncVisits(visits: RotasVisit[], companyMap: Map<string, CompanyR
 
 async function syncLeads(companyMap: Map<string, CompanyRow>) {
   const contacts = await fetchAll<ContactRow>('contacts', 'id,whatsapp_account_id,name,phone,phone_normalized');
-  const phoneRows = await fetchAll<{ company_id: string; phone_normalized: string }>('commercial_company_phones', 'company_id,phone_normalized');
+  const phoneRows = await fetchAll<{ company_id: string; phone_normalized: string; source: 'rotas' | 'manual' }>(
+    'commercial_company_phones',
+    'company_id,phone_normalized,source',
+  );
   const companies = await fetchAll<{ id: string; company_name: string; contact_name: string | null }>('commercial_companies', 'id,company_name,contact_name');
   const companyById = new Map(companies.map((company) => [company.id, company]));
   const phoneToCompanies = new Map<string, Set<string>>();
   for (const row of phoneRows) {
-    const set = phoneToCompanies.get(row.phone_normalized) ?? new Set<string>();
+    if (row.source !== 'rotas') continue;
+    const phone = normalizePhone(row.phone_normalized);
+    if (!phone) continue;
+    const set = phoneToCompanies.get(phone) ?? new Set<string>();
     set.add(row.company_id);
-    phoneToCompanies.set(row.phone_normalized, set);
+    phoneToCompanies.set(phone, set);
   }
 
   const { data: defaultStatus, error: statusError } = await supabaseAdmin
@@ -278,16 +274,25 @@ async function syncLeads(companyMap: Map<string, CompanyRow>) {
     .single();
   if (statusError || !defaultStatus) throw new Error(`Status inicial do Kanban indisponível: ${statusError?.message ?? 'não encontrado'}`);
 
-  const existing = await fetchAll<LeadRow>('commercial_leads', 'id,company_id,contact_id,linked_phone_normalized,link_source');
+  const existing = await fetchAll<LeadRow>(
+    'commercial_leads',
+    'id,company_id,contact_id,linked_phone_normalized,link_source,automatic_phone_normalized',
+  );
   const leadByCompanyPhone = new Map<string, LeadRow>();
+  const manualOverrideByCompanyAutomaticPhone = new Set<string>();
   for (const lead of existing) {
-    if (lead.linked_phone_normalized) leadByCompanyPhone.set(`${lead.company_id}:${lead.linked_phone_normalized}`, lead);
+    const linkedPhone = normalizePhone(lead.linked_phone_normalized);
+    if (linkedPhone) leadByCompanyPhone.set(`${lead.company_id}:${linkedPhone}`, lead);
+    if (lead.link_source === 'manual') {
+      const automaticPhone = normalizePhone(lead.automatic_phone_normalized);
+      if (automaticPhone) manualOverrideByCompanyAutomaticPhone.add(`${lead.company_id}:${automaticPhone}`);
+    }
   }
 
   let linked = 0;
   let ambiguous = 0;
   for (const contact of contacts) {
-    const phone = contact.phone_normalized ?? normalizePhone(contact.phone);
+    const phone = normalizePhone(contact.phone_normalized ?? contact.phone);
     if (!phone) continue;
     const matchedCompanies = phoneToCompanies.get(phone);
     if (!matchedCompanies?.size) continue;
@@ -300,9 +305,14 @@ async function syncLeads(companyMap: Map<string, CompanyRow>) {
     const company = companyById.get(companyId);
     if (!company) continue;
     const key = `${companyId}:${phone}`;
-    const current = leadByCompanyPhone.get(key);
 
+    -- An administrator-selected inbox contact represents this Rotas identity. Do not
+    -- recreate or overwrite an automatic card for the original Rotas phone.
+    if (manualOverrideByCompanyAutomaticPhone.has(key)) continue;
+
+    const current = leadByCompanyPhone.get(key);
     if (current) {
+      if (current.link_source === 'manual') continue;
       const { error } = await supabaseAdmin.from('commercial_leads').update({
         contact_id: contact.id,
         whatsapp_account_id: contact.whatsapp_account_id,
@@ -325,7 +335,7 @@ async function syncLeads(companyMap: Map<string, CompanyRow>) {
       linked_phone_normalized: phone,
       status_id: defaultStatus.id,
       link_source: 'automatic',
-    }).select('id,company_id,contact_id,linked_phone_normalized,link_source').single();
+    }).select('id,company_id,contact_id,linked_phone_normalized,link_source,automatic_phone_normalized').single();
     if (error || !data) throw new Error(`Mirror/commercial_leads link: ${error?.message ?? 'falha desconhecida'}`);
     const inserted = data as LeadRow;
     leadByCompanyPhone.set(key, inserted);
@@ -432,12 +442,12 @@ async function syncAssignments(visits: RotasVisit[], companyMap: Map<string, Com
 async function syncMetrics(visits: RotasVisit[], companyMap: Map<string, CompanyRow>) {
   const leads = await fetchAll<LeadRow>('commercial_leads', 'id,company_id,contact_id,linked_phone_normalized,link_source');
   const contacts = await fetchAll<ContactRow>('contacts', 'id,whatsapp_account_id,name,phone,phone_normalized');
-  const contactPhone = new Map(contacts.map((contact) => [contact.id, contact.phone_normalized ?? normalizePhone(contact.phone)]));
-  const conversations = await fetchAll<ConversationRow>('conversations', 'id,contact_id');
+  const contactPhone = new Map(contacts.map((contact) => [contact.id, normalizePhone(contact.phone_normalized ?? contact.phone)]));
+  const conversations = await fetchAll<ConversationRow>('conversations', 'id,contact_id,external_chat_id');
   const conversationPhone = new Map<string, string>();
   for (const conversation of conversations) {
-    if (!conversation.contact_id) continue;
-    const phone = contactPhone.get(conversation.contact_id);
+    const contactValue = conversation.contact_id ? contactPhone.get(conversation.contact_id) : null;
+    const phone = contactValue ?? normalizePhone(conversation.external_chat_id);
     if (phone) conversationPhone.set(conversation.id, phone);
   }
 
@@ -470,7 +480,8 @@ async function syncMetrics(visits: RotasVisit[], companyMap: Map<string, Company
       return (visit.completedAt ?? '') > (latest.completedAt ?? '') ? visit : latest;
     }, null);
     const lastVisitAt = lastVisit?.completedAt ?? null;
-    const phoneMessages = lead.linked_phone_normalized ? messagesByPhone.get(lead.linked_phone_normalized) ?? [] : [];
+    const leadPhone = normalizePhone(lead.linked_phone_normalized);
+    const phoneMessages = leadPhone ? messagesByPhone.get(leadPhone) ?? [] : [];
     const lastInteraction = phoneMessages.length ? phoneMessages[phoneMessages.length - 1]?.sent_at ?? null : null;
     const afterVisit = lastVisitAt ? phoneMessages.filter((message) => message.sent_at >= lastVisitAt) : [];
     const firstAfterVisit = afterVisit[0]?.sent_at ?? null;
