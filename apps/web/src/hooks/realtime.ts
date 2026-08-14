@@ -10,6 +10,7 @@ export function useRealtimeSync() {
       void queryClient.invalidateQueries({ queryKey: ['commercial-kanban-statuses'] });
       void queryClient.invalidateQueries({ queryKey: ['commercial-vendors'] });
     };
+    const leadIdFrom = (record: unknown) => typeof record === 'object' && record !== null && 'lead_id' in record ? String(record.lead_id) : null;
 
     const channel = supabase
       .channel('mirror-desk-realtime')
@@ -34,7 +35,16 @@ export function useRealtimeSync() {
         if (leadId) void queryClient.invalidateQueries({ queryKey: ['commercial-lead-history', leadId] });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'commercial_lead_assignments' }, refreshCommercial)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'commercial_lead_assignment_history' }, refreshCommercial)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'commercial_lead_metrics' }, refreshCommercial)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'commercial_lead_status_history' }, (payload) => {
+        const leadId = leadIdFrom(payload.new) ?? leadIdFrom(payload.old);
+        if (leadId) void queryClient.invalidateQueries({ queryKey: ['commercial-lead-history', leadId] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'commercial_lead_notes' }, (payload) => {
+        const leadId = leadIdFrom(payload.new) ?? leadIdFrom(payload.old);
+        if (leadId) void queryClient.invalidateQueries({ queryKey: ['commercial-lead-notes', leadId] });
+      })
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
   }, [queryClient]);
