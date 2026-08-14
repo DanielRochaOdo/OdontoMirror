@@ -4,15 +4,11 @@
 -- (for example 55 85 8766-1518), while Rotas may store the same mobile with the
 -- mandatory ninth digit (55 85 9 8766-1518). They represent the same destination.
 --
--- This migration makes that equivalence deterministic and conservative:
--- * only Brazilian numbers are affected;
--- * only 8-digit subscriber numbers beginning with 6, 7, 8 or 9 receive the ninth digit;
--- * fixed-line numbers (subscriber beginning with 2, 3, 4 or 5) are left unchanged;
--- * current 9-digit mobile numbers are left unchanged.
---
--- It also backfills current contacts/company phones and recalculates existing lead metrics,
--- so an already completed visit and already synchronized WhatsApp history are recognized
--- without repeating either action.
+-- This migration canonicalizes Brazilian mobile phones and installs incremental metric
+-- refreshes. It intentionally does NOT recalculate every Rotas phone in one statement:
+-- production databases can contain enough WhatsApp history for that global backfill to
+-- exceed the hosted statement timeout. Existing cards are recalculated incrementally by
+-- visit/message events and may also be refreshed explicitly per lead/phone by admin flows.
 
 create or replace function public.normalize_br_phone(p_phone text)
 returns text
@@ -63,14 +59,12 @@ begin
 end;
 $$;
 
--- Existing WhatsApp contacts are safe to rewrite because phone_normalized is not unique.
 update public.contacts
 set phone_normalized = public.normalize_br_phone(phone),
     updated_at = now()
 where phone_normalized is distinct from public.normalize_br_phone(phone);
 
--- The company-phone table is unique per company/phone/source. Remove only duplicate
--- rows that collapse to the same canonical key before rewriting the stored value.
+-- Remove only duplicates that collapse to the same canonical company/source/phone key.
 delete from public.commercial_company_phones a
 using public.commercial_company_phones b
 where a.id <> b.id
@@ -86,8 +80,6 @@ set phone_normalized = public.normalize_br_phone(phone_normalized),
 where public.normalize_br_phone(phone_normalized) is not null
   and phone_normalized is distinct from public.normalize_br_phone(phone_normalized);
 
--- Keep every future Rotas/manual company-phone row canonical even if an older backend
--- sends the historical mobile form.
 create or replace function public.canonicalize_commercial_company_phone()
 returns trigger
 language plpgsql
@@ -104,9 +96,8 @@ create trigger commercial_company_phone_canonicalize_trg
 before insert or update of phone_normalized on public.commercial_company_phones
 for each row execute function public.canonicalize_commercial_company_phone();
 
--- Canonicalize lead identities when doing so cannot collide with another historical
--- lead for the same company. The helper functions below still compare by canonical
--- key, so even a rare duplicate group that is intentionally left untouched remains matchable.
+-- Canonicalize existing lead identities only when the result cannot collide with another
+-- historical lead for the same company.
 update public.commercial_leads l
 set linked_phone_normalized = public.normalize_br_phone(l.linked_phone_normalized),
     updated_at = now()
@@ -121,8 +112,10 @@ where l.linked_phone_normalized is not null
       and public.normalize_br_phone(other.linked_phone_normalized) = public.normalize_br_phone(l.linked_phone_normalized)
   );
 
--- Supersede the PR #14 helper with canonical phone matching. Rotas remains the source
--- of company identity; manual links remain an explicit administrator override.
+-- Helps resolve conversations that do not yet have a contact row attached.
+create index if not exists conversations_external_chat_phone_normalized_idx
+  on public.conversations(public.normalize_br_phone(external_chat_id));
+
 create or replace function public.ensure_automatic_commercial_lead_for_company_phone(
   p_company_id uuid,
   p_phone text
@@ -175,6 +168,7 @@ begin
           whatsapp_account_id = v_contact.whatsapp_account_id,
           contact_name = coalesce(v_company.contact_name, v_contact.name, contact_name),
           contact_phone = coalesce(v_contact.phone, contact_phone, v_phone),
+          linked_phone_normalized = v_phone,
           updated_at = now()
       where id = v_existing.id;
     end if;
@@ -274,6 +268,8 @@ begin
 end;
 $$;
 
+-- Recalculate one phone at a time. The query first resolves the small set of matching
+-- conversation ids and then uses the existing messages(conversation_id, sent_at) index.
 create or replace function public.refresh_commercial_lead_metrics_for_phone(p_phone text)
 returns void
 language plpgsql
@@ -307,35 +303,34 @@ begin
     where company_id = v_lead.company_id
       and completed_at is not null;
 
-    select max(m.sent_at)
-    into v_last_interaction
+    with matched_conversations as (
+      select cv.id
+      from public.conversations cv
+      join public.contacts ct on ct.id = cv.contact_id
+      where ct.phone_normalized = v_phone
+      union
+      select cv.id
+      from public.conversations cv
+      where public.normalize_br_phone(cv.external_chat_id) = v_phone
+    )
+    select
+      max(m.sent_at),
+      min(m.sent_at) filter (where v_last_visit_at is not null and m.sent_at >= v_last_visit_at),
+      count(*) filter (where v_last_visit_at is not null and m.sent_at >= v_last_visit_at)::integer,
+      count(*) filter (where v_last_visit_at is not null and m.sent_at >= v_last_visit_at and m.direction = 'inbound')::integer,
+      count(*) filter (where v_last_visit_at is not null and m.sent_at >= v_last_visit_at and m.direction = 'outbound')::integer
+    into
+      v_last_interaction,
+      v_first_after_visit,
+      v_interaction_count,
+      v_inbound_count,
+      v_outbound_count
     from public.messages m
-    join public.conversations cv on cv.id = m.conversation_id
-    left join public.contacts ct on ct.id = cv.contact_id
-    where public.normalize_br_phone(coalesce(ct.phone_normalized, ct.phone, cv.external_chat_id)) = v_phone;
+    join matched_conversations mc on mc.id = m.conversation_id;
 
-    v_first_after_visit := null;
-    v_interaction_count := 0;
-    v_inbound_count := 0;
-    v_outbound_count := 0;
-
-    if v_last_visit_at is not null then
-      select
-        min(m.sent_at),
-        count(*)::integer,
-        count(*) filter (where m.direction = 'inbound')::integer,
-        count(*) filter (where m.direction = 'outbound')::integer
-      into
-        v_first_after_visit,
-        v_interaction_count,
-        v_inbound_count,
-        v_outbound_count
-      from public.messages m
-      join public.conversations cv on cv.id = m.conversation_id
-      left join public.contacts ct on ct.id = cv.contact_id
-      where public.normalize_br_phone(coalesce(ct.phone_normalized, ct.phone, cv.external_chat_id)) = v_phone
-        and m.sent_at >= v_last_visit_at;
-    end if;
+    v_interaction_count := coalesce(v_interaction_count, 0);
+    v_inbound_count := coalesce(v_inbound_count, 0);
+    v_outbound_count := coalesce(v_outbound_count, 0);
 
     if v_last_visit_at is not null and v_first_after_visit is not null then
       v_followup_delay := greatest(0, round(extract(epoch from (v_first_after_visit - v_last_visit_at)) / 60.0)::integer);
@@ -374,12 +369,12 @@ begin
       v_last_visit_at,
       v_first_after_visit,
       v_last_interaction,
-      coalesce(v_interaction_count, 0),
-      coalesce(v_inbound_count, 0),
-      coalesce(v_outbound_count, 0),
+      v_interaction_count,
+      v_inbound_count,
+      v_outbound_count,
       v_followup_delay,
       v_days_without_interaction,
-      (v_last_visit_at is not null and coalesce(v_interaction_count, 0) = 0),
+      (v_last_visit_at is not null and v_interaction_count = 0),
       v_temperature,
       now()
     )
@@ -423,30 +418,10 @@ begin
 end;
 $$;
 
--- Reinstall the message trigger to make the dependency explicit after replacing its function.
 drop trigger if exists messages_refresh_commercial_metrics_trg on public.messages;
 create trigger messages_refresh_commercial_metrics_trg
 after insert on public.messages
 for each row execute function public.refresh_commercial_metrics_after_message_trg();
-
--- Recalculate every Rotas phone now. This repairs both symptoms visible in the test:
--- last_visit_at is filled from the mirrored completed visit, and existing message history
--- is counted even when WhatsApp used the historical mobile form without the ninth digit.
-do $$
-declare
-  r record;
-begin
-  for r in
-    select distinct public.normalize_br_phone(cp.phone_normalized) as phone
-    from public.commercial_company_phones cp
-    where cp.source = 'rotas'
-      and public.normalize_br_phone(cp.phone_normalized) is not null
-  loop
-    perform public.reconcile_automatic_commercial_leads_for_phone(r.phone);
-    perform public.refresh_commercial_lead_metrics_for_phone(r.phone);
-  end loop;
-end;
-$$;
 
 revoke execute on function public.canonicalize_commercial_company_phone() from public, anon, authenticated;
 revoke execute on function public.ensure_automatic_commercial_lead_for_company_phone(uuid, text) from public, anon, authenticated;
