@@ -306,8 +306,8 @@ async function syncLeads(companyMap: Map<string, CompanyRow>) {
     if (!company) continue;
     const key = `${companyId}:${phone}`;
 
-    -- An administrator-selected inbox contact represents this Rotas identity. Do not
-    -- recreate or overwrite an automatic card for the original Rotas phone.
+    // An administrator-selected inbox contact represents this Rotas identity. Do not
+    // recreate or overwrite an automatic card for the original Rotas phone.
     if (manualOverrideByCompanyAutomaticPhone.has(key)) continue;
 
     const current = leadByCompanyPhone.get(key);
