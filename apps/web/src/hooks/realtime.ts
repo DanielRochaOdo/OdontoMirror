@@ -10,6 +10,11 @@ export function useRealtimeSync() {
       void queryClient.invalidateQueries({ queryKey: ['commercial-kanban-statuses'] });
       void queryClient.invalidateQueries({ queryKey: ['commercial-vendors'] });
     };
+    const refreshVendorOwnership = () => {
+      void queryClient.invalidateQueries({ queryKey: ['whatsapp-vendor-assignments'] });
+      void queryClient.invalidateQueries({ queryKey: ['whatsapp-vendor-assignment-history'] });
+      void queryClient.invalidateQueries({ queryKey: ['vendor-recent-conversations'] });
+    };
     const leadIdFrom = (record: unknown) => typeof record === 'object' && record !== null && 'lead_id' in record ? String(record.lead_id) : null;
 
     const channel = supabase
@@ -17,16 +22,20 @@ export function useRealtimeSync() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_accounts' }, () => {
         void queryClient.invalidateQueries({ queryKey: ['whatsapp-accounts'] });
         void queryClient.invalidateQueries({ queryKey: ['whatsapp-account'] });
+        refreshVendorOwnership();
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_vendor_assignments' }, refreshVendorOwnership)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => {
         void queryClient.invalidateQueries({ queryKey: ['conversations'] });
         void queryClient.invalidateQueries({ queryKey: ['conversation'] });
         void queryClient.invalidateQueries({ queryKey: ['whatsapp-accounts'] });
+        void queryClient.invalidateQueries({ queryKey: ['vendor-recent-conversations'] });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
         void queryClient.invalidateQueries({ queryKey: ['messages'] });
         void queryClient.invalidateQueries({ queryKey: ['conversations'] });
         void queryClient.invalidateQueries({ queryKey: ['whatsapp-accounts'] });
+        void queryClient.invalidateQueries({ queryKey: ['vendor-recent-conversations'] });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'commercial_kanban_statuses' }, refreshCommercial)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'commercial_leads' }, (payload) => {

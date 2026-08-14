@@ -1,4 +1,4 @@
-import { Activity, ArrowUpRight, CalendarClock, CheckCircle2, Plus, Power, QrCode, RefreshCw, Search, Smartphone, Trash2, WifiOff } from 'lucide-react';
+import { Activity, ArrowUpRight, CalendarClock, CheckCircle2, Plus, Power, QrCode, RefreshCw, Search, Smartphone, Trash2, UserRoundCog, WifiOff } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -7,8 +7,10 @@ import { AddWhatsAppDialog } from '../components/whatsapp/AddWhatsAppDialog';
 import { SyncProgressBanner } from '../components/whatsapp/SyncProgressBanner';
 import { WhatsAppQRCodeDialog, type QRTarget } from '../components/whatsapp/WhatsAppQRCodeDialog';
 import { WhatsAppStatusBadge } from '../components/whatsapp/WhatsAppStatusBadge';
+import { WhatsAppVendorDialog } from '../components/whatsapp/WhatsAppVendorDialog';
 import { Button } from '../components/ui/button';
-import { useWhatsAppAccounts } from '../hooks/queries';
+import { useCommercialVendors, useWhatsAppAccounts } from '../hooks/queries';
+import { useWhatsAppVendorAssignments } from '../hooks/vendorOwnership';
 import { whatsappApi } from '../lib/api';
 import { logAuditEvent } from '../lib/audit';
 import { formatRelativeDate } from '../lib/utils';
@@ -18,19 +20,37 @@ interface ActiveSync {
   name: string;
 }
 
+interface VendorDialogTarget {
+  id: string;
+  name: string;
+  phoneNumber: string;
+}
+
 export function WhatsAppsPage() {
   const queryClient = useQueryClient();
   const { data: accounts = [], isLoading } = useWhatsAppAccounts();
+  const { data: vendors = [] } = useCommercialVendors();
+  const { data: vendorAssignments = [] } = useWhatsAppVendorAssignments();
   const [search, setSearch] = useState('');
   const [addOpen, setAddOpen] = useState(false);
   const [qrAccount, setQrAccount] = useState<QRTarget | null>(null);
+  const [vendorDialogAccount, setVendorDialogAccount] = useState<VendorDialogTarget | null>(null);
   const [activeSync, setActiveSync] = useState<ActiveSync | null>(null);
 
-  const filtered = useMemo(
-    () => accounts.filter((account) => `${account.name} ${account.phoneNumber}`.toLowerCase().includes(search.toLowerCase())),
-    [accounts, search],
-  );
+  const vendorById = useMemo(() => new Map(vendors.map((vendor) => [vendor.id, vendor])), [vendors]);
+  const assignmentByAccount = useMemo(() => new Map(vendorAssignments.map((assignment) => [assignment.whatsappAccountId, assignment])), [vendorAssignments]);
+
+  const filtered = useMemo(() => {
+    const needle = search.toLowerCase().trim();
+    return accounts.filter((account) => {
+      const assignment = assignmentByAccount.get(account.id);
+      const vendor = assignment ? vendorById.get(assignment.vendorId) : undefined;
+      return !needle || `${account.name} ${account.phoneNumber} ${vendor?.name ?? ''} ${vendor?.email ?? ''}`.toLowerCase().includes(needle);
+    });
+  }, [accounts, assignmentByAccount, search, vendorById]);
+
   const lastSync = accounts.map((account) => account.lastSyncAt).filter(Boolean).sort().at(-1);
+  const linkedAccounts = vendorAssignments.length;
   const refreshAccounts = () => queryClient.invalidateQueries({ queryKey: ['whatsapp-accounts'] });
 
   const connect = async (id: string, name: string) => {
@@ -86,7 +106,7 @@ export function WhatsAppsPage() {
       <div>
         <p className="eyebrow">CENTRAL DE CONFERÊNCIA</p>
         <h1>WhatsApps corporativos</h1>
-        <p className="page-subtitle">Selecione um número para consultar suas conversas com segurança.</p>
+        <p className="page-subtitle">Identifique quem utiliza cada número e consulte suas conversas com segurança.</p>
       </div>
       <Button onClick={() => setAddOpen(true)}><Plus size={17} /> Adicionar WhatsApp</Button>
     </div>
@@ -94,6 +114,7 @@ export function WhatsAppsPage() {
     <div className="overview-grid">
       <div className="overview-card"><div className="overview-icon blue"><Smartphone size={18} /></div><div><span>Números cadastrados</span><strong>{accounts.length.toString().padStart(2, '0')}</strong></div><small>contas no ambiente</small></div>
       <div className="overview-card"><div className="overview-icon green"><CheckCircle2 size={18} /></div><div><span>Sessões conectadas</span><strong>{accounts.filter((account) => account.connected).length.toString().padStart(2, '0')}</strong></div><small>de {accounts.length} números</small></div>
+      <div className="overview-card"><div className="overview-icon violet"><UserRoundCog size={18} /></div><div><span>Com responsável</span><strong>{linkedAccounts.toString().padStart(2, '0')}</strong></div><small>de {accounts.length} números</small></div>
       <div className="overview-card"><div className="overview-icon orange"><Activity size={18} /></div><div><span>Última sincronização</span><strong>{lastSync ? new Date(lastSync).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—'}</strong></div><small>{lastSync ? formatRelativeDate(lastSync) : 'nenhuma sincronização'}</small></div>
     </div>
 
@@ -110,30 +131,41 @@ export function WhatsAppsPage() {
 
     <section className="content-panel">
       <div className="panel-toolbar">
-        <div><h2>Seus números</h2><p>Dados organizados por conta corporativa</p></div>
-        <label className="search-field"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar número..." /></label>
+        <div><h2>Seus números</h2><p>Dados organizados por conta e responsável</p></div>
+        <label className="search-field"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar número ou vendedor..." /></label>
       </div>
       {isLoading ? <div className="loading-list">{[1, 2, 3].map((item) => <div className="skeleton-row" key={item} />)}</div> : filtered.length ? <div className="accounts-table">
         <div className="table-head"><span>NÚMERO CORPORATIVO</span><span>STATUS</span><span>ÚLTIMA ATIVIDADE</span><span>CONVERSAS</span><span>AÇÕES</span></div>
-        {filtered.map((account) => <Link className="account-row" to={`/whatsapps/${account.id}/conversations`} key={account.id} onClick={() => void logAuditEvent('VIEW_ACCOUNT', 'whatsapp_account', account.id, account.id, { entity_label: account.name })}>
-          <div className="account-identity"><div className={`account-avatar avatar-${account.id}`}><span>{account.name.slice(0, 2).toUpperCase()}</span><i className={account.connected ? 'online' : ''} /></div><div><strong>{account.name}</strong><span>{account.phoneNumber}</span></div></div>
-          <div><WhatsAppStatusBadge status={account.status} /></div>
-          <div className="activity-cell"><span>{account.lastMessageAt ? formatRelativeDate(account.lastMessageAt) : 'Sem mensagens'}</span><small><CalendarClock size={13} /> {account.lastSyncAt ? `sincronizado ${formatRelativeDate(account.lastSyncAt)}` : 'ainda não sincronizado'}</small></div>
-          <div className="conversation-total"><strong>{account.conversationCount}</strong><span>conversas</span></div>
-          <div className="row-action" style={{ display: 'flex', gap: 5 }} onClick={(event) => { event.preventDefault(); event.stopPropagation(); }}>
-            {account.connected ? <>
-              <button disabled={activeSync?.id === account.id} aria-label={`Sincronizar ${account.name}`} title={activeSync?.id === account.id ? 'Sincronização em andamento' : 'Sincronizar'} onClick={() => void sync(account.id, account.name)}><RefreshCw className={activeSync?.id === account.id ? 'spin' : undefined} size={17} /></button>
-              <button aria-label={`Desconectar ${account.name}`} title="Desconectar" onClick={() => void disconnect(account.id, account.name)}><Power size={17} /></button>
-            </> : <button aria-label={`Conectar ${account.name}`} title="Conectar / QR Code" onClick={() => void connect(account.id, account.name)}><QrCode size={17} /></button>}
-            <button aria-label={`Excluir ${account.name}`} title="Excluir" onClick={() => void remove(account.id, account.name)}><Trash2 size={17} /></button>
-            <ArrowUpRight size={18} />
-          </div>
-        </Link>)}
-      </div> : <div className="empty-state"><WifiOff size={24} /><strong>Nenhum número encontrado</strong><span>{accounts.length ? 'Tente buscar por outro nome ou telefone.' : 'Cadastre o primeiro WhatsApp corporativo para começar.'}</span></div>}
+        {filtered.map((account) => {
+          const assignment = assignmentByAccount.get(account.id);
+          const vendor = assignment ? vendorById.get(assignment.vendorId) : undefined;
+          return <Link className="account-row" to={`/whatsapps/${account.id}/conversations`} key={account.id} onClick={() => void logAuditEvent('VIEW_ACCOUNT', 'whatsapp_account', account.id, account.id, { entity_label: account.name })}>
+            <div className="account-identity"><div className={`account-avatar avatar-${account.id}`}><span>{account.name.slice(0, 2).toUpperCase()}</span><i className={account.connected ? 'online' : ''} /></div><div><strong>{account.name}</strong><span>{account.phoneNumber}</span><small className={`account-owner ${vendor ? '' : 'unassigned'}`}>{vendor ? `Responsável: ${vendor.name}` : 'Responsável: não vinculado'}</small></div></div>
+            <div><WhatsAppStatusBadge status={account.status} /></div>
+            <div className="activity-cell"><span>{account.lastMessageAt ? formatRelativeDate(account.lastMessageAt) : 'Sem mensagens'}</span><small><CalendarClock size={13} /> {account.lastSyncAt ? `sincronizado ${formatRelativeDate(account.lastSyncAt)}` : 'ainda não sincronizado'}</small></div>
+            <div className="conversation-total"><strong>{account.conversationCount}</strong><span>conversas</span></div>
+            <div className="row-action" style={{ display: 'flex', gap: 5 }} onClick={(event) => { event.preventDefault(); event.stopPropagation(); }}>
+              <button aria-label={`Definir responsável de ${account.name}`} title={vendor ? `Responsável: ${vendor.name}` : 'Vincular vendedor'} onClick={() => setVendorDialogAccount({ id: account.id, name: account.name, phoneNumber: account.phoneNumber })}><UserRoundCog size={17} /></button>
+              {account.connected ? <>
+                <button disabled={activeSync?.id === account.id} aria-label={`Sincronizar ${account.name}`} title={activeSync?.id === account.id ? 'Sincronização em andamento' : 'Sincronizar'} onClick={() => void sync(account.id, account.name)}><RefreshCw className={activeSync?.id === account.id ? 'spin' : undefined} size={17} /></button>
+                <button aria-label={`Desconectar ${account.name}`} title="Desconectar" onClick={() => void disconnect(account.id, account.name)}><Power size={17} /></button>
+              </> : <button aria-label={`Conectar ${account.name}`} title="Conectar / QR Code" onClick={() => void connect(account.id, account.name)}><QrCode size={17} /></button>}
+              <button aria-label={`Excluir ${account.name}`} title="Excluir" onClick={() => void remove(account.id, account.name)}><Trash2 size={17} /></button>
+              <ArrowUpRight size={18} />
+            </div>
+          </Link>;
+        })}
+      </div> : <div className="empty-state"><WifiOff size={24} /><strong>Nenhum número encontrado</strong><span>{accounts.length ? 'Tente buscar por outro nome, telefone ou vendedor.' : 'Cadastre o primeiro WhatsApp corporativo para começar.'}</span></div>}
     </section>
 
     <p className="readonly-note"><CheckCircle2 size={15} /> Modo de conferência ativo · nenhuma ação de envio está disponível neste ambiente.</p>
     <AddWhatsAppDialog open={addOpen} onClose={() => setAddOpen(false)} onCreated={(account) => { void refreshAccounts(); setQrAccount({ id: account.accountId, name: account.name }); }} />
     <WhatsAppQRCodeDialog account={qrAccount} open={Boolean(qrAccount)} onClose={() => setQrAccount(null)} />
+    <WhatsAppVendorDialog
+      account={vendorDialogAccount}
+      open={Boolean(vendorDialogAccount)}
+      currentVendorId={vendorDialogAccount ? assignmentByAccount.get(vendorDialogAccount.id)?.vendorId : undefined}
+      onClose={() => setVendorDialogAccount(null)}
+    />
   </div>;
 }
