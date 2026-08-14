@@ -5,7 +5,7 @@ const isNgrokFreeEndpoint = apiUrl.includes('.ngrok-free.app') || apiUrl.include
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw new Error('Sessão administrativa expirada.');
+  if (!session) throw new Error('Sessão expirada.');
 
   const headers = new Headers(init.headers);
   headers.set('Authorization', `Bearer ${session.access_token}`);
@@ -52,6 +52,33 @@ export interface ApiHealth {
   timestamp: string;
 }
 
+export interface CommercialSyncResult {
+  runId: string;
+  vendorsSynced: number;
+  companiesSynced: number;
+  visitsSynced: number;
+  leadsLinked: number;
+  assignmentsChanged: number;
+  ambiguousPhones: number;
+}
+
+export interface CommercialSyncStatus {
+  configured: boolean;
+  runs: Array<{
+    id: string;
+    status: 'running' | 'success' | 'error';
+    started_at: string;
+    finished_at: string | null;
+    vendors_synced: number;
+    companies_synced: number;
+    visits_synced: number;
+    leads_linked: number;
+    assignments_changed: number;
+    error_message: string | null;
+    metadata: Record<string, unknown>;
+  }>;
+}
+
 export const whatsappApi = {
   createAccount: (body: { name: string; description?: string }) => request<CreatedWhatsAppAccount>('/api/whatsapp/accounts', { method: 'POST', body: JSON.stringify(body) }),
   connect: (accountId: string) => request<{ accountId: string; status: string }>(`/api/whatsapp/${accountId}/connect`, { method: 'POST' }),
@@ -62,4 +89,9 @@ export const whatsappApi = {
   status: (accountId: string) => request<{ accountId: string; status: string }>(`/api/whatsapp/${accountId}/status`),
   qr: (accountId: string) => request<{ accountId: string; qrCode: string | null }>(`/api/whatsapp/${accountId}/qr`),
   health: () => request<ApiHealth>('/health'),
+};
+
+export const commercialApi = {
+  sync: () => request<CommercialSyncResult>('/api/commercial/sync', { method: 'POST' }),
+  syncStatus: () => request<CommercialSyncStatus>('/api/commercial/sync/status'),
 };
